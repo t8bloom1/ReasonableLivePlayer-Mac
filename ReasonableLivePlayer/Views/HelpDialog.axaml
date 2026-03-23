@@ -1,0 +1,44 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="ReasonableLivePlayer.Views.HelpDialog"
+        Title="Reasonable Live Player — Help" Width="480" Height="640"
+        Background="#1E1E1E"
+        WindowStartupLocation="CenterOwner" CanResize="False"
+        ShowInTaskbar="False">
+    <Grid Margin="16" RowDefinitions="*,Auto">
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Spacing="8">
+                <TextBlock Text="Reasonable Live Player" FontSize="16" FontWeight="Bold" Foreground="White"/>
+
+                <TextBlock Text="Overview" FontWeight="Bold" Foreground="White"/>
+                <TextBlock TextWrapping="Wrap" Foreground="White" FontSize="13" LineHeight="20"
+                    Text="RLP automates live set playback in Reason. It opens songs in sequence and advances to the next when a MIDI trigger note is received."/>
+
+                <TextBlock Text="RLP Setup" FontWeight="Bold" Foreground="White"/>
+                <TextBlock TextWrapping="Wrap" Foreground="White" FontSize="13" LineHeight="20"
+                    Text="1. Click ＋ or drag .reason / .rns files into the playlist.&#x0a;2. Open Settings (⚙) and select your MIDI input device, channel, and trigger note number.&#x0a;3. The MIDI indicator turns green when connected.&#x0a;4. Press ▶ to start — RLP opens the first song in Reason.&#x0a;5. When the trigger note is received, RLP closes the current song and opens the next."/>
+
+                <TextBlock Text="macOS: Creating an Internal MIDI Port" FontWeight="Bold" Foreground="White"/>
+                <TextBlock TextWrapping="Wrap" Foreground="White" FontSize="13" LineHeight="20"
+                    Text="RLP listens for a MIDI note to advance songs. If you don't have an external MIDI controller, you can create a virtual MIDI port using macOS Audio MIDI Setup:&#x0a;&#x0a;1. Open Audio MIDI Setup (Applications → Utilities, or search Spotlight).&#x0a;2. From the menu bar, choose Window → Show MIDI Studio.&#x0a;3. Double-click the IAC Driver icon.&#x0a;4. Check 'Device is online'.&#x0a;5. Optionally add a bus (e.g. 'RLP Trigger') using the + button.&#x0a;6. Click Apply, then close.&#x0a;7. In RLP Settings (⚙), select 'IAC Driver' (or your bus name) as the MIDI device.&#x0a;8. Any app that sends MIDI to the IAC bus (e.g. Reason, a foot controller app) will trigger RLP."/>
+
+                <TextBlock Text="Toolbar Buttons" FontWeight="Bold" Foreground="White"/>
+                <TextBlock TextWrapping="Wrap" Foreground="White" FontSize="13" LineHeight="20"
+                    Text="▶ / ⏸  Play or pause&#x0a;⏭  Skip to next song&#x0a;＋  Add songs&#x0a;💾  Save playlist&#x0a;📂  Open playlist&#x0a;⚙  Settings&#x0a;📌  Always on top&#x0a;?  Help"/>
+
+                <TextBlock Text="About" FontWeight="Bold" Foreground="White"/>
+                <TextBlock x:Name="VersionText" Foreground="White" FontSize="13"/>
+                <TextBlock x:Name="BuildDateText" Foreground="White" FontSize="13"/>
+                <TextBlock Foreground="#5599FF" FontSize="13" Cursor="Hand"
+                           x:Name="RepoLink" PointerPressed="RepoLink_Click"
+                           Text="https://github.com/t8bloom1/ReasonableLivePlayer"
+                           TextDecorations="Underline"/>
+                <TextBlock Text="Licensed under the MIT License." Foreground="White" FontSize="13"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Button Grid.Row="1" Content="Close" Width="80" Height="28"
+                HorizontalAlignment="Right" Margin="0,12,0,0"
+                Click="Close_Click"/>
+    </Grid>
+</Window>

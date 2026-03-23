@@ -1,0 +1,120 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:converters="clr-namespace:ReasonableLivePlayer.Converters"
+        xmlns:vm="clr-namespace:ReasonableLivePlayer.ViewModels"
+        xmlns:local="clr-namespace:ReasonableLivePlayer"
+        xmlns:controls="clr-namespace:ReasonableLivePlayer.Controls"
+        x:Class="ReasonableLivePlayer.MainWindow"
+        Title="Reasonable Live Player" Width="420" Height="520"
+        Background="#1E1E1E"
+        Topmost="{Binding AlwaysOnTop}"
+        WindowStartupLocation="CenterScreen" CanResize="True">
+
+    <Window.Resources>
+        <converters:ActiveIndicatorConverter x:Key="ActiveIndicator"/>
+        <converters:ActiveIndicatorColorConverter x:Key="ActiveIndicatorColor"/>
+        <local:MidiDotConverter x:Key="MidiDotConverter"/>
+    </Window.Resources>
+
+    <Grid Margin="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Toolbar -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,8" Spacing="4">
+            <Button Content="{Binding PlayPauseLabel}" Command="{Binding PlayPauseCommand}"
+                    Width="48" Height="36" FontSize="18" HorizontalContentAlignment="Center"
+                    Focusable="False" Background="#3A3A3A" Foreground="White" CornerRadius="4"
+                    ToolTip.Tip="{Binding PlayPauseTooltip}"/>
+            <Button Content="⏭" Command="{Binding SkipCommand}"
+                    Width="48" Height="36" FontSize="18" HorizontalContentAlignment="Center"
+                    Focusable="False" Background="#3A3A3A" Foreground="White" CornerRadius="4"
+                    ToolTip.Tip="Skip to next song"/>
+            <Button Content="＋" Command="{Binding AddSongsCommand}"
+                    Width="48" Height="36" FontSize="18" HorizontalContentAlignment="Center"
+                    Focusable="False" Background="#3A3A3A" Foreground="White" CornerRadius="4"
+                    ToolTip.Tip="Add songs"/>
+            <Button Content="💾" Command="{Binding SavePlaylistCommand}"
+                    Width="36" Height="36" FontSize="14" HorizontalContentAlignment="Center"
+                    Focusable="False" Background="#3A3A3A" Foreground="White" CornerRadius="4"
+                    ToolTip.Tip="Save playlist"/>
+            <Button Content="📂" Command="{Binding LoadPlaylistCommand}"
+                    Width="36" Height="36" FontSize="14" HorizontalContentAlignment="Center"
+                    Focusable="False" Background="#3A3A3A" Foreground="White" CornerRadius="4"
+                    ToolTip.Tip="Open playlist"/>
+            <Button Content="⚙" Command="{Binding OpenSettingsCommand}"
+                    Width="36" Height="36" FontSize="14" HorizontalContentAlignment="Center"
+                    Focusable="False" Background="#3A3A3A" Foreground="White" CornerRadius="4"
+                    ToolTip.Tip="Settings"/>
+            <Button Content="?" Command="{Binding OpenHelpCommand}"
+                    Width="36" Height="36" FontSize="14" HorizontalContentAlignment="Center"
+                    Focusable="False" Background="#3A3A3A" Foreground="White" CornerRadius="4"
+                    ToolTip.Tip="Help"/>
+            <!-- MIDI Connection Indicator -->
+            <Ellipse Width="14" Height="14" Margin="4,0,0,0" VerticalAlignment="Center"
+                     Fill="{Binding MidiConnected, Converter={StaticResource MidiDotConverter}}"
+                     ToolTip.Tip="{Binding MidiStatusText}"/>
+            <CheckBox Content="📌" IsChecked="{Binding AlwaysOnTop}" VerticalAlignment="Center"
+                      Foreground="White" FontSize="16" Margin="4,0,0,0"
+                      ToolTip.Tip="Stay on top of other windows"/>
+        </StackPanel>
+
+        <!-- Playlist -->
+        <Grid Grid.Row="1">
+            <ListBox x:Name="PlaylistBox" ItemsSource="{Binding Songs}"
+                     Background="#252525" BorderThickness="0">
+                <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid Margin="2" ColumnDefinitions="24,24,*,Auto">
+                        <!-- Now-playing indicator -->
+                        <Button Grid.Column="0" Cursor="Hand"
+                                Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).SelectSongCommand}"
+                                CommandParameter="{Binding}"
+                                Background="Transparent" BorderThickness="0" Padding="0"
+                                Width="24" Height="24">
+                            <TextBlock FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock.Text>
+                                    <MultiBinding Converter="{StaticResource ActiveIndicator}">
+                                        <Binding Path="IsActive"/>
+                                        <Binding Path="$parent[Window].((vm:MainViewModel)DataContext).IsPlaylistActive"/>
+                                    </MultiBinding>
+                                </TextBlock.Text>
+                                <TextBlock.Foreground>
+                                    <MultiBinding Converter="{StaticResource ActiveIndicatorColor}">
+                                        <Binding Path="IsActive"/>
+                                        <Binding Path="$parent[Window].((vm:MainViewModel)DataContext).IsPlaylistActive"/>
+                                    </MultiBinding>
+                                </TextBlock.Foreground>
+                            </TextBlock>
+                        </Button>
+                        <!-- Drag handle -->
+                        <TextBlock Grid.Column="1" Text="☰" FontSize="14" Foreground="#666"
+                                   VerticalAlignment="Center" Cursor="Hand"
+                                   x:Name="DragHandle"
+                                   PointerPressed="DragHandle_PointerPressed"
+                                   PointerMoved="DragHandle_PointerMoved"
+                                   PointerReleased="DragHandle_PointerReleased"/>
+                        <!-- Song name -->
+                        <TextBlock Grid.Column="2" Text="{Binding DisplayName}" Foreground="White"
+                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Margin="4,0"/>
+                        <!-- Remove button -->
+                        <Button Grid.Column="3" Content="✕" FontSize="10"
+                                Command="{Binding $parent[Window].((vm:MainViewModel)DataContext).RemoveSongCommand}"
+                                CommandParameter="{Binding}"
+                                Background="Transparent" Foreground="#888" BorderThickness="0"
+                                Width="22" Height="22"/>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+            </ListBox>
+            <controls:DropIndicatorAdorner x:Name="DropIndicator" IsVisible="False" IsHitTestVisible="False"/>
+        </Grid>
+
+        <!-- Status -->
+        <TextBlock Grid.Row="2" Text="{Binding StatusText}" Foreground="#888" FontSize="11"
+                   HorizontalAlignment="Center" Margin="0,4"/>
+    </Grid>
+</Window>

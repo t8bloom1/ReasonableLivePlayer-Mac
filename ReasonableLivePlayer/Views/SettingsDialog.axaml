@@ -1,0 +1,40 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="ReasonableLivePlayer.Views.SettingsDialog"
+        Title="Settings" Width="360" Height="360"
+        Background="#1E1E1E"
+        WindowStartupLocation="CenterOwner" CanResize="False"
+        ShowInTaskbar="False">
+    <Grid Margin="16" ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,*,Auto">
+
+        <TextBlock Grid.Row="0" Text="MIDI Device:" Foreground="White" VerticalAlignment="Center" Margin="0,0,0,8"/>
+        <ComboBox Grid.Row="0" Grid.Column="1" x:Name="DeviceCombo" Margin="0,0,0,8"/>
+
+        <TextBlock Grid.Row="1" Text="Channel (1-16):" Foreground="White" VerticalAlignment="Center" Margin="0,0,0,8"/>
+        <ComboBox Grid.Row="1" Grid.Column="1" x:Name="ChannelCombo" Margin="0,0,0,8"/>
+
+        <TextBlock Grid.Row="2" Text="Note (0-127):" Foreground="White" VerticalAlignment="Center" Margin="0,0,0,8"/>
+        <ComboBox Grid.Row="2" Grid.Column="1" x:Name="NoteCombo" Margin="0,0,0,8"/>
+
+        <TextBlock Grid.Row="3" Text="Transition delay (s):" Foreground="White" VerticalAlignment="Center" Margin="0,0,0,8"/>
+        <TextBox Grid.Row="3" Grid.Column="1" x:Name="DelayTextBox" Width="60" HorizontalAlignment="Left"
+                 Margin="0,0,0,8" MaxLength="2"/>
+
+        <CheckBox Grid.Row="4" Grid.ColumnSpan="2" x:Name="LoadLastPlaylistCheck"
+                  Content="Load last playlist on startup" Foreground="White" Margin="0,4,0,4"/>
+
+        <CheckBox Grid.Row="5" Grid.ColumnSpan="2" x:Name="AlwaysOnTopCheck"
+                  Content="Always on top" Foreground="White" Margin="0,4,0,4"/>
+
+        <StackPanel Grid.Row="6" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,8,0,0">
+            <TextBlock Text="Accessibility:" Foreground="White" VerticalAlignment="Center" Margin="0,0,6,0"/>
+            <TextBlock x:Name="AccessibilityStatus" VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <StackPanel Grid.Row="7" Grid.ColumnSpan="2" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Margin="0,8,0,0" Spacing="8">
+            <Button Content="Save" Width="80" Height="28" Click="Save_Click"/>
+            <Button Content="Cancel" Width="80" Height="28" Click="Cancel_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

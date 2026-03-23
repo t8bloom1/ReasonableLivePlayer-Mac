@@ -1,0 +1,12 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="ReasonableLivePlayer.Views.MessageDialog"
+        Width="360" Height="160" CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="#1E1E1E">
+    <Grid Margin="20" RowDefinitions="*,Auto">
+        <TextBlock Text="{Binding Message}" Foreground="White" TextWrapping="Wrap" VerticalAlignment="Center"/>
+        <StackPanel x:Name="ButtonPanel" Grid.Row="1" Orientation="Horizontal"
+                    HorizontalAlignment="Right" Spacing="8" Margin="0,12,0,0"/>
+    </Grid>
+</Window>
