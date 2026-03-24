@@ -6,6 +6,8 @@ Reasonable Live Player automates live set playback in [Reason](https://www.reaso
 
 > Looking for the Windows version? See [ReasonableLivePlayer](https://github.com/t8bloom1/ReasonableLivePlayer).
 
+![Reasonable Live Player on macOS](mac-rlp.png)
+
 ## Features
 
 - Build and save playlists of `.reason` / `.rns` song files
