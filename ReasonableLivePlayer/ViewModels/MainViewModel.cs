@@ -26,13 +26,21 @@ public class MainViewModel : INotifyPropertyChanged
     private string _statusText = "Ready";
     private int _transitionDelaySec = 5;
     private bool _playlistDirty;
+    private int _songSpacing = 0;
+    private double _songFontSize = 13;
 
     public ObservableCollection<Song> Songs { get; } = [];
+
+    public bool AccessibilityGranted
+    {
+        get => _accessibilityGranted;
+        private set { _accessibilityGranted = value; OnPropertyChanged(); OnPropertyChanged(nameof(StatusIndicatorTooltip)); PlayPauseCommand?.RaiseCanExecuteChanged(); }
+    }
 
     public bool IsPlaylistActive
     {
         get => _isPlaylistActive;
-        set { _isPlaylistActive = value; OnPropertyChanged(); OnPropertyChanged(nameof(PlayPauseLabel)); OnPropertyChanged(nameof(PlayPauseTooltip)); SelectSongCommand?.RaiseCanExecuteChanged(); }
+        set { _isPlaylistActive = value; OnPropertyChanged(); OnPropertyChanged(nameof(PlayPauseLabel)); OnPropertyChanged(nameof(PlayPauseTooltip)); }
     }
 
     public string PlayPauseLabel => IsPlaylistActive ? "⏸" : "▶";
@@ -42,9 +50,16 @@ public class MainViewModel : INotifyPropertyChanged
     public bool MidiConnected
     {
         get => _midiConnected;
-        set { _midiConnected = value; OnPropertyChanged(); OnPropertyChanged(nameof(MidiStatusText)); }
+        set { _midiConnected = value; OnPropertyChanged(); OnPropertyChanged(nameof(MidiStatusText)); OnPropertyChanged(nameof(StatusIndicatorTooltip)); }
     }
     public string MidiStatusText => MidiConnected ? "MIDI connected" : "MIDI not connected";
+    public string StatusIndicatorTooltip => (MidiConnected, AccessibilityGranted) switch
+    {
+        (true, true) => "MIDI connected, Accessibility granted",
+        (true, false) => "MIDI connected, Accessibility NOT granted",
+        (false, true) => "MIDI not connected, Accessibility granted",
+        _ => "MIDI not connected, Accessibility NOT granted"
+    };
 
     public bool AlwaysOnTop
     {
@@ -56,6 +71,18 @@ public class MainViewModel : INotifyPropertyChanged
     {
         get => _playlistDirty;
         set { _playlistDirty = value; OnPropertyChanged(); }
+    }
+
+    public int SongSpacing
+    {
+        get => _songSpacing;
+        set { _songSpacing = value; OnPropertyChanged(); }
+    }
+
+    public double SongFontSize
+    {
+        get => _songFontSize;
+        set { _songFontSize = value; OnPropertyChanged(); }
     }
 
     public RelayCommand AddSongsCommand { get; }
@@ -87,6 +114,8 @@ public class MainViewModel : INotifyPropertyChanged
         var settings = SettingsStore.Load();
         _transitionDelaySec = settings.TransitionDelaySec;
         AlwaysOnTop = settings.AlwaysOnTop;
+        SongSpacing = settings.SongSpacing;
+        SongFontSize = settings.SongFontSize;
 
         if (!string.IsNullOrEmpty(settings.MidiDeviceName))
             _midiListener.Connect(settings.MidiDeviceName, settings.MidiChannel - 1, settings.EndNoteNumber);
@@ -124,7 +153,7 @@ public class MainViewModel : INotifyPropertyChanged
         {
             if (IsPlaylistActive) Pause();
             else Play();
-        }, _ => Songs.Count > 0 && _accessibilityGranted);
+        }, _ => Songs.Count > 0 && AccessibilityGranted);
 
         SkipCommand = new RelayCommand(_ => Skip(), _ => Songs.Count > 0);
 
@@ -150,6 +179,8 @@ public class MainViewModel : INotifyPropertyChanged
                 var s = SettingsStore.Load();
                 _transitionDelaySec = s.TransitionDelaySec;
                 AlwaysOnTop = s.AlwaysOnTop;
+                SongSpacing = s.SongSpacing;
+                SongFontSize = s.SongFontSize;
                 if (!string.IsNullOrEmpty(s.MidiDeviceName))
                     _midiListener.Connect(s.MidiDeviceName, s.MidiChannel - 1, s.EndNoteNumber);
             }
@@ -193,17 +224,25 @@ public class MainViewModel : INotifyPropertyChanged
 
         SelectSongCommand = new RelayCommand(p =>
         {
-            if (p is Song s && !IsPlaylistActive)
+            if (p is Song s)
             {
                 var idx = Songs.IndexOf(s);
-                if (idx >= 0)
+                if (idx < 0) return;
+
+                if (IsPlaylistActive)
                 {
+                    // Play mode: close current song and jump to selected
+                    JumpToSong(idx);
+                }
+                else
+                {
+                    // Pause mode: select as next song
                     _currentIndex = idx;
                     SetActiveSong(idx);
                     StatusText = $"Next: {s.DisplayName}";
                 }
             }
-        }, _ => !IsPlaylistActive);
+        });
     }
 
     public async Task<bool> PromptSaveIfDirtyAsync()
@@ -247,9 +286,34 @@ public class MainViewModel : INotifyPropertyChanged
     {
         Dispatcher.UIThread.Post(() =>
         {
-            if (!IsPlaylistActive) return;
-            AdvanceToNext();
+            if (IsPlaylistActive)
+            {
+                AdvanceToNext();
+            }
+            else if (_currentIndex >= 0 && _currentIndex < Songs.Count)
+            {
+                // Paused: close active song, advance pointer, but don't open next
+                _ = HandlePausedTriggerAsync();
+            }
         });
+    }
+
+    private async Task HandlePausedTriggerAsync()
+    {
+        await CloseCurrentAsync();
+
+        if (_currentIndex < Songs.Count - 1)
+        {
+            _currentIndex++;
+            SetActiveSong(_currentIndex);
+            StatusText = $"Next: {Songs[_currentIndex].DisplayName}";
+        }
+        else
+        {
+            ClearActiveSong();
+            _currentIndex = -1;
+            StatusText = "Set complete";
+        }
     }
 
     private async void Play()
@@ -325,6 +389,18 @@ public class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    private async void JumpToSong(int index)
+    {
+        await CloseCurrentAsync();
+        _currentIndex = index;
+        SetActiveSong(index);
+        var song = Songs[index];
+        StatusText = $"Opening: {song.DisplayName}";
+        await Task.Delay(_transitionDelaySec * 1000);
+        await _bridge.OpenSongAsync(song.FilePath);
+        StatusText = $"Playing: {song.DisplayName}";
+    }
+
     private async Task CloseCurrentAsync()
     {
         if (_currentIndex >= 0 && _currentIndex < Songs.Count)
@@ -336,6 +412,10 @@ public class MainViewModel : INotifyPropertyChanged
         foreach (var s in Songs) s.IsActive = false;
         if (index >= 0 && index < Songs.Count)
             Songs[index].IsActive = true;
+
+        // Scroll to show the next song (or the active song if it's the last one)
+        int scrollTarget = (index < Songs.Count - 1) ? index + 1 : index;
+        ActiveSongChanged?.Invoke(scrollTarget);
     }
 
     private void ClearActiveSong()
@@ -350,6 +430,12 @@ public class MainViewModel : INotifyPropertyChanged
     private void OnPropertyChanged([CallerMemberName] string? n = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(n));
 
+    /// <summary>
+    /// Raised when the active song changes, providing the index to scroll to.
+    /// The index is the next song (or current if last) to ensure visibility of context.
+    /// </summary>
+    public event Action<int>? ActiveSongChanged;
+
     // --- Accessibility permission (macOS) ---
 
     [DllImport("/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices")]
@@ -359,8 +445,7 @@ public class MainViewModel : INotifyPropertyChanged
     {
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
         {
-            _accessibilityGranted = true;
-            PlayPauseCommand?.RaiseCanExecuteChanged();
+            AccessibilityGranted = true;
             return;
         }
 
@@ -368,8 +453,7 @@ public class MainViewModel : INotifyPropertyChanged
 
         if (AXIsProcessTrusted())
         {
-            _accessibilityGranted = true;
-            PlayPauseCommand?.RaiseCanExecuteChanged();
+            AccessibilityGranted = true;
             return;
         }
 

@@ -9,9 +9,9 @@
     <key>CFBundleIdentifier</key>
     <string>com.reasonablelive.player</string>
     <key>CFBundleVersion</key>
-    <string>1.0.0</string>
+    <string>1.2.0</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0.0</string>
+    <string>1.2.0</string>
     <key>CFBundleExecutable</key>
     <string>ReasonableLivePlayer</string>
     <key>CFBundlePackageType</key>
@@ -22,5 +22,43 @@
     <true/>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
+    <key>CFBundleDocumentTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleTypeName</key>
+            <string>RLP Playlist</string>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>CFBundleTypeIconFile</key>
+            <string>RLPDocument</string>
+            <key>LSItemContentTypes</key>
+            <array>
+                <string>com.reasonablelive.player.rlp</string>
+            </array>
+            <key>LSHandlerRank</key>
+            <string>Owner</string>
+        </dict>
+    </array>
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <key>UTTypeIdentifier</key>
+            <string>com.reasonablelive.player.rlp</string>
+            <key>UTTypeDescription</key>
+            <string>RLP Playlist</string>
+            <key>UTTypeConformsTo</key>
+            <array>
+                <string>public.data</string>
+                <string>public.json</string>
+            </array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array>
+                    <string>rlp</string>
+                </array>
+            </dict>
+        </dict>
+    </array>
 </dict>
 </plist>

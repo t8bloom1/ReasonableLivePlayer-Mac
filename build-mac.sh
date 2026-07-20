@@ -55,6 +55,23 @@ done
 iconutil -c icns "$ICONSET" -o "$BUNDLE/Contents/Resources/AppIcon.icns"
 rm -rf "$ICONSET"
 
+# Generate document icon for .rlp files (same source, separate .icns)
+echo "==> Creating document icon..."
+DOC_ICONSET="$SCRIPT_DIR/RLPDocument.iconset"
+rm -rf "$DOC_ICONSET"
+mkdir -p "$DOC_ICONSET"
+
+for SIZE in 16 32 128 256 512; do
+    sips -z $SIZE $SIZE "$SRC" --out "$DOC_ICONSET/icon_${SIZE}x${SIZE}.png" >/dev/null 2>&1
+done
+for SIZE in 32 64 256 512 1024; do
+    HALF=$((SIZE / 2))
+    sips -z $SIZE $SIZE "$SRC" --out "$DOC_ICONSET/icon_${HALF}x${HALF}@2x.png" >/dev/null 2>&1
+done
+
+iconutil -c icns "$DOC_ICONSET" -o "$BUNDLE/Contents/Resources/RLPDocument.icns"
+rm -rf "$DOC_ICONSET"
+
 # Ad-hoc code sign
 echo "==> Code signing..."
 codesign --deep --force --sign - "$BUNDLE"

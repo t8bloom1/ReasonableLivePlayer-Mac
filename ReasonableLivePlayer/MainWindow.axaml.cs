@@ -31,6 +31,14 @@ public partial class MainWindow : Window
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
         DragDrop.SetAllowDrop(this, true);
 
+        // Auto-scroll playlist when active song changes
+        vm.ActiveSongChanged += scrollIndex =>
+        {
+            var listBox = this.FindControl<ListBox>("PlaylistBox");
+            if (listBox == null) return;
+            listBox.ScrollIntoView(scrollIndex);
+        };
+
         _ = vm.CheckAccessibilityAsync();
     }
 
@@ -69,6 +77,16 @@ public partial class MainWindow : Window
             if (ext is ".reason" or ".rns")
                 vm.Songs.Add(new Song { FilePath = path });
         }
+    }
+
+    // --- Double-click song name handler ---
+
+    private void SongName_DoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is not Control { DataContext: Song song }) return;
+        if (DataContext is not MainViewModel vm) return;
+        vm.SelectSongCommand.Execute(song);
+        e.Handled = true;
     }
 
     // --- Drag-reorder handlers ---
@@ -165,16 +183,38 @@ public partial class MainWindow : Window
 }
 
 /// <summary>
-/// Converts MidiConnected bool to red/green ellipse fill.
+/// Converts MidiConnected + AccessibilityGranted to green/yellow/red ellipse fill.
+/// Green = both OK, Yellow = one of two, Red = neither.
 /// </summary>
-public class MidiDotConverter : IValueConverter
+public class StatusIndicatorConverter : IMultiValueConverter
 {
-    private static ISolidColorBrush? _green, _red;
+    private static ISolidColorBrush? _green, _yellow, _red;
+
+    public object? Convert(IList<object?> values, Type targetType, object? parameter, CultureInfo culture)
+    {
+        bool midi = values.Count > 0 && values[0] is true;
+        bool accessibility = values.Count > 1 && values[1] is true;
+
+        if (midi && accessibility)
+            return _green ??= new SolidColorBrush(Colors.LimeGreen);
+        if (midi || accessibility)
+            return _yellow ??= new SolidColorBrush(Colors.Gold);
+        return _red ??= new SolidColorBrush(Colors.Red);
+    }
+}
+
+/// <summary>
+/// Converts a spacing int to a Thickness with that value as top margin (gap between items).
+/// </summary>
+public class MarginConverter : IValueConverter
+{
+    public static readonly MarginConverter Instance = new();
 
     public object Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
-        => value is true
-            ? (_green ??= new SolidColorBrush(Colors.LimeGreen))
-            : (_red ??= new SolidColorBrush(Colors.Red));
+    {
+        int spacing = value is int s ? s : (value is double d ? (int)d : 0);
+        return new Avalonia.Thickness(0, spacing, 0, 0);
+    }
 
     public object ConvertBack(object? value, Type targetType, object? parameter, CultureInfo culture)
         => throw new NotSupportedException();
