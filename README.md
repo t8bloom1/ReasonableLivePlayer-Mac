@@ -53,6 +53,17 @@ The IAC Driver now appears as a MIDI device in both Reason and RLP.
 3. On first launch, macOS may show a security warning — right-click the app and choose **Open** to bypass Gatekeeper.
 4. Grant Accessibility permission when prompted (System Settings → Privacy & Security → Accessibility).
 
+### Upgrading from a previous version
+
+If you are replacing an older version of RLP, you must **remove and re-add** the Accessibility permission — even though the app name is the same. macOS ties the permission to the specific app binary, not just the name.
+
+1. Open **System Settings → Privacy & Security → Accessibility**.
+2. Select the old **Reasonable Live Player** entry and click the **−** button to remove it.
+3. Click **+**, navigate to the new `.app`, and add it.
+4. Ensure the toggle is enabled.
+
+Without this step, RLP will show a yellow or red status indicator and will be unable to close Reason song windows.
+
 ## Quick Start
 
 1. Open RLP and click **＋** (or drag `.reason` files from Finder) to build your playlist.
