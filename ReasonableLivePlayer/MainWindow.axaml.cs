@@ -9,6 +9,7 @@ using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.VisualTree;
 using ReasonableLivePlayer.Models;
+using ReasonableLivePlayer.Services;
 using ReasonableLivePlayer.ViewModels;
 
 namespace ReasonableLivePlayer;
@@ -18,6 +19,7 @@ public partial class MainWindow : Window
     private Song? _dragSong;
     private bool _isDragging;
     private Point _dragStart;
+    private PixelPoint? _savedPosition;
 
     public MainWindow()
     {
@@ -25,6 +27,8 @@ public partial class MainWindow : Window
         var vm = new MainViewModel();
         DataContext = vm;
         Closing += MainWindow_Closing;
+
+        RestoreWindowBounds();
 
         // Set up file drop handling
         AddHandler(DragDrop.DropEvent, OnDrop);
@@ -48,10 +52,76 @@ public partial class MainWindow : Window
         e.Cancel = true;
         if (await vm.PromptSaveIfDirtyAsync())
         {
+            SaveWindowBounds();
             vm.Cleanup();
             Closing -= MainWindow_Closing;
             Close();
         }
+    }
+
+    /// <summary>
+    /// Restore the window size (and remember the position) from saved settings.
+    /// Size is applied immediately; position is applied in OnOpened once the
+    /// window exists, which is more reliable across platforms.
+    /// </summary>
+    private void RestoreWindowBounds()
+    {
+        var s = SettingsStore.Load();
+
+        if (s.WindowWidth is > 0 && s.WindowHeight is > 0)
+        {
+            Width = s.WindowWidth.Value;
+            Height = s.WindowHeight.Value;
+        }
+
+        if (s.WindowX is { } x && s.WindowY is { } y)
+        {
+            _savedPosition = new PixelPoint((int)x, (int)y);
+            // We have a saved position, so don't re-center the window.
+            WindowStartupLocation = WindowStartupLocation.Manual;
+        }
+    }
+
+    protected override void OnOpened(EventArgs e)
+    {
+        base.OnOpened(e);
+
+        if (_savedPosition is { } pos && IsPositionOnScreen(pos))
+            Position = pos;
+    }
+
+    /// <summary>
+    /// Persist the current window position and size.
+    /// Only saves when in a normal (not minimized/maximized) state so we store
+    /// the restorable bounds rather than a maximized rectangle.
+    /// </summary>
+    private void SaveWindowBounds()
+    {
+        if (WindowState != WindowState.Normal) return;
+
+        var cur = SettingsStore.Load();
+        SettingsStore.Save(cur with
+        {
+            WindowX = Position.X,
+            WindowY = Position.Y,
+            WindowWidth = Width,
+            WindowHeight = Height
+        });
+    }
+
+    /// <summary>
+    /// Guard against restoring a window to a position that is off every screen
+    /// (e.g. a monitor that was disconnected since the last run).
+    /// </summary>
+    private bool IsPositionOnScreen(PixelPoint pos)
+    {
+        foreach (var screen in Screens.All)
+        {
+            // Require the top-left corner to land within a screen's bounds.
+            if (screen.Bounds.Contains(pos))
+                return true;
+        }
+        return false;
     }
 
     private void OnDragOver(object? sender, DragEventArgs e)
