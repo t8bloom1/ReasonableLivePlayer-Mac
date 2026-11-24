@@ -60,9 +60,9 @@ public enum AppearanceMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
-/// Size of the toolbar icons. Small is the original size.
+/// Size of the toolbar icons. The toolbar grows with them. Medium is the default.
 public enum ToolbarIconSize: String, Codable, CaseIterable, Identifiable {
-    case small, medium, large
+    case small, medium, large, extraLarge
 
     public var id: String { rawValue }
 
@@ -71,6 +71,7 @@ public enum ToolbarIconSize: String, Codable, CaseIterable, Identifiable {
         case .small: return "Small"
         case .medium: return "Medium"
         case .large: return "Large"
+        case .extraLarge: return "Extra Large"
         }
     }
 }
@@ -106,7 +107,7 @@ public struct SettingsData: Codable, Equatable {
         songFontSize: Double = 13,
         appearance: AppearanceMode = .system,
         showTooltips: Bool = true,
-        toolbarIconSize: ToolbarIconSize = .small
+        toolbarIconSize: ToolbarIconSize = .medium
     ) {
         self.midiDeviceName = midiDeviceName
         self.midiChannel = midiChannel
@@ -153,7 +154,7 @@ public struct SettingsData: Codable, Equatable {
         songFontSize = try c.decodeIfPresent(Double.self, forKey: .songFontSize) ?? 13
         appearance = (try? c.decodeIfPresent(AppearanceMode.self, forKey: .appearance)) ?? .system
         showTooltips = try c.decodeIfPresent(Bool.self, forKey: .showTooltips) ?? true
-        toolbarIconSize = (try? c.decodeIfPresent(ToolbarIconSize.self, forKey: .toolbarIconSize)) ?? .small
+        toolbarIconSize = (try? c.decodeIfPresent(ToolbarIconSize.self, forKey: .toolbarIconSize)) ?? .medium
     }
 }
 

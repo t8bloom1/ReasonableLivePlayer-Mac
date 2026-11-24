@@ -38,6 +38,10 @@ public final class PlayerController: ObservableObject {
     /// True when the playlist has changed since it was last saved or loaded.
     @Published public private(set) var isDirty = false
     @Published public private(set) var scrollRequest: ScrollRequest? = nil
+    /// The highlighted row. Set by clicking a song, moved by the arrow keys, and played with
+    /// Return. This is separate from `activeIndex`, which marks the song that is playing or
+    /// queued next.
+    @Published public var selectedSongID: Song.ID? = nil
     /// True while playing or while a transition is running. The app holds a keep-awake
     /// assertion for as long as this is true.
     @Published public private(set) var needsToStayAwake = false
@@ -121,6 +125,7 @@ public final class PlayerController: ObservableObject {
         guard let index = songs.firstIndex(where: { $0.id == id }) else { return }
         recordUndo("Remove Song")
         songs.remove(at: index)
+        if selectedSongID == id { selectedSongID = nil }
         if let active = activeIndex {
             if index < active {
                 activeIndex = active - 1
@@ -153,6 +158,7 @@ public final class PlayerController: ObservableObject {
         if undoable { recordUndo("Open Playlist") } else { clearUndo() }
         cancelTransition()
         songs = paths.map { Song(path: $0) }
+        selectedSongID = nil
         activeIndex = nil
         isPlaying = false
         statusText = "Loaded \(songs.count) songs"
@@ -200,6 +206,9 @@ public final class PlayerController: ObservableObject {
     private func restore(_ restored: [Song]) {
         let activeID = activeSongID
         songs = restored
+        if let selected = selectedSongID, !songs.contains(where: { $0.id == selected }) {
+            selectedSongID = nil
+        }
         if let activeID, let index = songs.firstIndex(where: { $0.id == activeID }) {
             activeIndex = index
         } else if let index = activeIndex, songs.indices.contains(index) {
@@ -277,6 +286,7 @@ public final class PlayerController: ObservableObject {
     /// paused: make it the next song to play, without starting playback.
     public func selectSong(id: Song.ID) {
         guard let index = songs.firstIndex(where: { $0.id == id }) else { return }
+        selectedSongID = id
         if inPlayMode {
             resumeAfterTransition = true
             beginTransition { [self] in
@@ -303,6 +313,7 @@ public final class PlayerController: ObservableObject {
     /// jump to it. While paused, select the song and start playing it.
     public func playSong(id: Song.ID) {
         guard let index = songs.firstIndex(where: { $0.id == id }) else { return }
+        selectedSongID = id
         if inPlayMode {
             selectSong(id: id)
             return

@@ -8,37 +8,24 @@ struct ContentView: View {
     @EnvironmentObject private var player: PlayerController
 
     var body: some View {
-        VStack(spacing: 6) {
-            PlaylistView()
-            Text(player.statusText)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity)
-                .padding(.bottom, 4)
+        VStack(spacing: 0) {
+            ToolbarBar()
+            Divider()
+            VStack(spacing: 6) {
+                PlaylistView()
+                Text(player.statusText)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom, 4)
+            }
+            .padding([.horizontal, .top], 8)
         }
-        .padding([.horizontal, .top], 8)
-        .frame(minWidth: 380, minHeight: 240)
+        // The window's minimum width follows the icon size so the buttons always fit.
+        .frame(minWidth: model.settings.toolbarIconSize.minimumWindowWidth, minHeight: 260)
         .navigationTitle(model.windowTitle)
-        .hidingToolbarTitle()
-        .toolbar {
-            // Each button is its own toolbar item. Wrapping several buttons in one HStack made
-            // them a single custom-view item, which lost the tooltips.
-            ToolbarItemGroup(placement: .navigation) {
-                PlayPauseButton()
-                SkipButton()
-            }
-            ToolbarItemGroup(placement: .primaryAction) {
-                AddSongsButton()
-                OpenPlaylistButton()
-                SavePlaylistButton()
-                SettingsButton()
-                HelpButton()
-                StayOnTopToggle()
-                StatusDot()
-            }
-        }
         .background(WindowAccessor { window in model.attach(window: window) })
     }
 }
@@ -50,40 +37,61 @@ extension View {
     fileprivate func tip(_ text: String, _ enabled: Bool) -> some View {
         help(enabled ? text : "")
     }
-
-    /// Removes the window title from the toolbar row so it does not take up width. Uses the
-    /// SwiftUI API on macOS 15 and later (when built with Xcode 16 or later). `AppModel.attach`
-    /// also hides it through AppKit, which covers earlier systems.
-    @ViewBuilder
-    fileprivate func hidingToolbarTitle() -> some View {
-        #if compiler(>=6.0)
-        if #available(macOS 15, *) {
-            self.toolbar(removing: .title)
-        } else {
-            self
-        }
-        #else
-        self
-        #endif
-    }
 }
 
 extension ToolbarIconSize {
-    /// Symbol font for toolbar icons. Small is the system default, which is the original size.
-    fileprivate var symbolFont: Font? {
+    /// Size of the toolbar symbols in points.
+    fileprivate var symbolSize: CGFloat {
         switch self {
-        case .small: return nil
-        case .medium: return .system(size: 17)
-        case .large: return .system(size: 22)
+        case .small: return 13
+        case .medium: return 17
+        case .large: return 22
+        case .extraLarge: return 28
         }
     }
 
-    fileprivate var statusDotDiameter: CGFloat {
+    fileprivate var buttonWidth: CGFloat { symbolSize * 1.8 }
+    fileprivate var buttonHeight: CGFloat { symbolSize * 1.5 }
+    fileprivate var barVerticalPadding: CGFloat { max(6, symbolSize * 0.35) }
+    fileprivate var statusDotDiameter: CGFloat { (symbolSize * 0.85).rounded() }
+
+    /// Room for the nine controls at this size, plus the playlist area.
+    fileprivate var minimumWindowWidth: CGFloat {
         switch self {
-        case .small: return 12
-        case .medium: return 15
-        case .large: return 18
+        case .small: return 400
+        case .medium: return 480
+        case .large: return 580
+        case .extraLarge: return 700
         }
+    }
+}
+
+/// The toolbar. It is part of the window content, not a system toolbar, because the system
+/// toolbar has a fixed height and clips larger icons. The bar grows with the icon size.
+@MainActor
+private struct ToolbarBar: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        let size = model.settings.toolbarIconSize
+        HStack(spacing: 6) {
+            PlayPauseButton()
+            SkipButton()
+            Spacer(minLength: 8)
+            AddSongsButton()
+            OpenPlaylistButton()
+            SavePlaylistButton()
+            SettingsButton()
+            HelpButton()
+            StayOnTopToggle()
+            StatusDot()
+                .padding(.leading, 4)
+        }
+        .buttonStyle(.bordered)
+        .padding(.horizontal, 10)
+        .padding(.vertical, size.barVerticalPadding)
+        .frame(maxWidth: .infinity)
+        .background(.bar)
     }
 }
 
@@ -95,9 +103,11 @@ private struct ToolbarGlyph: View {
     let systemImage: String
 
     var body: some View {
+        let size = model.settings.toolbarIconSize
         Label(title, systemImage: systemImage)
             .labelStyle(.iconOnly)
-            .font(model.settings.toolbarIconSize.symbolFont)
+            .font(.system(size: size.symbolSize))
+            .frame(width: size.buttonWidth, height: size.buttonHeight)
     }
 }
 
@@ -244,6 +254,7 @@ private struct StatusDot: View {
 private struct PlaylistView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var player: PlayerController
+    @FocusState private var listHasFocus: Bool
 
     var body: some View {
         if player.songs.isEmpty {
@@ -270,7 +281,9 @@ private struct PlaylistView: View {
     private var songList: some View {
         let activeID = player.activeSongID
         return ScrollViewReader { proxy in
-            List {
+            // Selection gives the row highlight and Up/Down arrow navigation (which also
+            // scrolls the list). Return plays the selected song.
+            List(selection: $player.selectedSongID) {
                 ForEach(player.songs) { song in
                     SongRow(
                         song: song,
@@ -290,6 +303,13 @@ private struct PlaylistView: View {
                 }
             }
             .listStyle(.inset)
+            .focused($listHasFocus)
+            .onAppear { listHasFocus = true }
+            .onKeyPress(keys: [.return, KeyEquivalent("\u{3}")], phases: .down) { _ in
+                guard let id = player.selectedSongID else { return .ignored }
+                model.playSong(id: id)
+                return .handled
+            }
             .onChange(of: player.scrollRequest) { request in
                 guard let request else { return }
                 withAnimation { proxy.scrollTo(request.songID) }
@@ -346,6 +366,7 @@ private func loadFileURLs(from providers: [NSItemProvider], completion: @escapin
 
 @MainActor
 private struct SongRow: View {
+    @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var player: PlayerController
 
     let song: Song
@@ -385,7 +406,7 @@ private struct SongRow: View {
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
-                .onTapGesture(count: 2) { player.playSong(id: song.id) }
+                .onTapGesture(count: 2) { model.playSong(id: song.id) }
                 .accessibilityAddTraits(isActive ? .isSelected : [])
 
             Button { player.removeSong(id: song.id) } label: {

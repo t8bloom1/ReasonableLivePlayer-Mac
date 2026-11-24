@@ -121,6 +121,18 @@ final class AppModel: ObservableObject {
         NSApplication.shared.appearance = appearance
     }
 
+    // MARK: - Playing a chosen song
+
+    /// Double-click or Return on a song. Closing songs needs Accessibility permission, so this
+    /// does nothing without it, the same as the disabled Play button.
+    func playSong(id: Song.ID) {
+        guard accessibilityGranted else {
+            player.setStatus("⚠ Accessibility permission required to play songs")
+            return
+        }
+        player.playSong(id: id)
+    }
+
     // MARK: - MIDI
 
     private func connectMidi() {
@@ -179,8 +191,7 @@ final class AppModel: ObservableObject {
             applyAppearance()
             updateWindowChrome()
         }
-        // The title text shares the title bar row with the toolbar and forces the window wider.
-        // The title still exists for the Window menu and Mission Control.
+        // Hide the title text. The title still exists for the Window menu and Mission Control.
         if newWindow.titleVisibility != .hidden { newWindow.titleVisibility = .hidden }
         applyWindowLevel()
     }

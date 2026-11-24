@@ -196,6 +196,53 @@ final class PlayerControllerTests: XCTestCase {
         XCTAssertTrue(c.isPlaying)
     }
 
+    // MARK: Selection
+
+    func testClickingAnArrowSelectsTheSong() {
+        let (c, _) = make()
+        XCTAssertNil(c.selectedSongID)
+        c.selectSong(id: c.songs[1].id)
+        XCTAssertEqual(c.selectedSongID, c.songs[1].id)
+    }
+
+    func testPlaySongSelectsTheSong() async {
+        let (c, _) = make()
+        c.playSong(id: c.songs[2].id); await c.waitForTransition()
+        XCTAssertEqual(c.selectedSongID, c.songs[2].id)
+    }
+
+    func testSelectionDoesNotStartPlayback() async {
+        let (c, r) = make()
+        c.selectedSongID = c.songs[1].id        // what a click on the row does
+        await c.waitForTransition()
+        XCTAssertEqual(r.events, [])
+        XCTAssertFalse(c.isPlaying)
+    }
+
+    func testRemovingTheSelectedSongClearsSelection() {
+        let (c, _) = make()
+        c.selectedSongID = c.songs[1].id
+        c.removeSong(id: c.songs[0].id)
+        XCTAssertEqual(c.selectedSongID, c.songs[0].id)     // other removals keep it
+        c.removeSong(id: c.songs[0].id)
+        XCTAssertNil(c.selectedSongID)
+    }
+
+    func testReplacingTheListClearsSelection() {
+        let (c, _) = make()
+        c.selectedSongID = c.songs[0].id
+        c.replaceSongs(paths: ["/m/z.reason"])
+        XCTAssertNil(c.selectedSongID)
+    }
+
+    func testUndoingAnAddClearsSelectionOnTheAddedSong() {
+        let (c, _) = make()
+        c.insertSongs(paths: ["/m/x.reason"])
+        c.selectedSongID = c.songs[3].id
+        c.undo()
+        XCTAssertNil(c.selectedSongID)
+    }
+
     // MARK: Races the .NET version had
 
     func testTriggerDuringTransitionIsIgnored() async {

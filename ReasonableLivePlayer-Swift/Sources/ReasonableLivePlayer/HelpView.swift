@@ -49,6 +49,8 @@ struct HelpView: View {
 
                 section("Keyboard shortcuts", """
                 ⌘↩  Play / Pause
+                ↑ ↓  Choose a song in the playlist
+                Return  Play the chosen song
                 ⌘→  Skip to next song
                 ⌘O  Open playlist
                 ⇧⌘O  Add songs
@@ -59,7 +61,7 @@ struct HelpView: View {
                 """)
 
                 section("Playing and pausing", """
-                Double-click a song to play it. While playing, the current song is closed and the one you chose opens. While paused, the chosen song opens and playback resumes. To choose the next song without starting it, click the arrow beside it while paused. Drag rows to reorder them.
+                Click a song to highlight it, use the up and down arrow keys to move through the list, and press Return to play the highlighted song. You can also double-click a song to play it. While playing, the current song is closed and the one you chose opens. While paused, the chosen song opens and playback resumes. To choose the next song without starting it, click the arrow beside it while paused. Drag rows to reorder them.
                 """)
             }
             .frame(maxWidth: .infinity, alignment: .leading)

@@ -6,7 +6,7 @@ same way: it opens Reason song files in order and advances when a MIDI trigger n
 
 **Status:** written without access to a Mac. The platform-independent core (models, JSON
 files, MIDI byte parsing, and the playlist state machine in `PlayerController`) was compiled
-with Swift 5.10 on Linux, and its 67 unit tests pass. The parts that need macOS frameworks
+with Swift 5.10 on Linux, and its 73 unit tests pass. The parts that need macOS frameworks
 (CoreMIDI, Accessibility, AppKit, SwiftUI) have not been compiled or run. See the
 [First build checklist](#first-build-checklist).
 
@@ -118,16 +118,22 @@ scripts/make-icon.py             regenerates Resources/icon.png (needs Pillow)
     still appears in the Window menu and Mission Control.
 16. **Playback menu** with Play/Pause (⌘↩) and Skip (⌘→). Modifier shortcuts are used on purpose
     so a stray key press cannot start or skip a song during a show.
-17. **System look.** A native toolbar and system colors replace the fixed dark theme. Appearance
+17. **System look.** System colors replace the fixed dark theme. The toolbar is part of the window
+    content, not a system toolbar, so it can grow with the icon size (the system toolbar has a fixed
+    height and clips large icons). Appearance
     can be set to Match System, Light or Dark in Settings.
 18. **New app icon** (rounded macOS-style shape), standard About panel, VoiceOver labels on the
     icon-only buttons, and logging to the unified log (see below).
 
-19. **Toolbar settings.** Settings has a Toolbar section with an icon size (Small, Medium, Large;
-    Small is the original size) and a switch for tooltips (on by default). The tooltip switch
+19. **Toolbar settings.** Settings has a Toolbar section with an icon size (Small, Medium, Large, Extra Large;
+    Medium is the default) and a switch for tooltips (on by default). The tooltip switch
     also covers the buttons in the playlist rows.
 20. **Help opens in its own resizable window**, like Settings, instead of a fixed sheet over the
     playlist.
+21. **Selecting songs.** Clicking a song highlights it. The up and down arrow keys move the highlight
+    and scroll the list, and Return (or keypad Enter) plays the highlighted song. Double-click still
+    plays a song, and clicking the arrow beside a song also highlights it. Like the Play button,
+    these do nothing until Accessibility permission is granted.
 
 Other shortcuts: ⌘O open playlist, ⇧⌘O add songs, ⌘S save, ⇧⌘S save as, ⌘Z / ⇧⌘Z undo and redo.
 
@@ -174,8 +180,8 @@ will warn). Then check these on a Mac in roughly this order:
     section without scrolling. On macOS 13 the button
     sends `showSettingsWindow:`; on 14 and later it is a `SettingsLink`. Check which one you
     have works.
-11. **Toolbar:** check the buttons fit at the default window width, and that nothing is
-    cut off into the overflow menu.
+11. **Toolbar:** at each icon size (Small to Extra Large) check the bar grows to fit the icons and the
+    window does not clip any button. Check dragging the window narrower at each size.
 12. **Keep-awake:** while playing, `pmset -g assertions` should list "Reasonable Live Player"
     with a PreventUserIdleDisplaySleep or similar entry. After pausing it should be gone.
 13. **Undo:** remove a song, press ⌘Z. Check the Edit menu names the action.
@@ -186,6 +192,9 @@ will warn). Then check these on a Mac in roughly this order:
 16. **Toolbar tooltips and sizes:** hover over each toolbar button and check the tooltip. Switch
     tooltips off, then Medium and Large icons, in Settings.
 17. **Appearance:** try Match System, Light and Dark in Settings.
+18. **Selecting songs:** click a song (it should highlight), press the up and down arrow keys
+    (the highlight moves and the list scrolls), then press Return (it should play). Note whether
+    the first click on an inactive window selects the row or only activates the window.
 
 ## Signing and the Accessibility permission
 
