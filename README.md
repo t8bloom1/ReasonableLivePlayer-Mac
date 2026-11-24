@@ -114,6 +114,12 @@ dotnet test ReasonableLivePlayer.Tests/ReasonableLivePlayer.Tests.csproj
 
 The `.app` bundle will be created in the project root.
 
+## Native Swift version
+
+`ReasonableLivePlayer-Swift/` contains a native SwiftUI/CoreMIDI rewrite of this app that
+reads the same playlists and settings. See [its README](ReasonableLivePlayer-Swift/README.md)
+for build instructions and the list of behavior changes.
+
 ## Differences from the Windows Version
 
 | | Windows | macOS |
