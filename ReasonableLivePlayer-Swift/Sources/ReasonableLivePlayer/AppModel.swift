@@ -191,8 +191,9 @@ final class AppModel: ObservableObject {
             applyAppearance()
             updateWindowChrome()
         }
-        // Hide the title text. The title still exists for the Window menu and Mission Control.
-        if newWindow.titleVisibility != .hidden { newWindow.titleVisibility = .hidden }
+        // The title (the playlist name) sits in the title bar. Keep it visible in case SwiftUI
+        // or an earlier version of the app left it hidden.
+        if newWindow.titleVisibility != .visible { newWindow.titleVisibility = .visible }
         applyWindowLevel()
     }
 

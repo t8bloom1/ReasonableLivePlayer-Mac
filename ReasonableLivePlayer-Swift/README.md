@@ -113,9 +113,8 @@ scripts/make-icon.py             regenerates Resources/icon.png (needs Pillow)
     opens at the height of its contents, so nothing needs scrolling, and its width can be
     dragged wider.
 14. **Undo and Redo** for adding, removing, reordering and opening playlists (up to 50 steps).
-15. **Open Recent**, **Save** and **Save As**. The unsaved-changes dot shows in the close button.
-    The window title (the playlist name) is hidden so it does not take up toolbar width, but it
-    still appears in the Window menu and Mission Control.
+15. **Open Recent**, **Save** and **Save As**. The window title shows the playlist name, with a proxy icon, and an unsaved-changes dot shows
+    in the close button.
 16. **Playback menu** with Play/Pause (⌘↩) and Skip (⌘→). Modifier shortcuts are used on purpose
     so a stray key press cannot start or skip a song during a show.
 17. **System look.** System colors replace the fixed dark theme. The toolbar is part of the window
@@ -149,8 +148,7 @@ log stream --predicate 'subsystem == "com.reasonablelive.player"' --level info
 ## First build checklist
 
 The macOS-specific code was reviewed by reading, not by compiling. Expect to fix a few compiler
-errors or warnings (`NSRunningApplication.activate(options:)` is deprecated on macOS 14 and
-will warn). Then check these on a Mac in roughly this order:
+errors or warnings. Then check these on a Mac in roughly this order:
 
 1. `swift build` and `swift test`. If a test fails, tell me which; the tests encode the
    behavior listed above.
@@ -166,7 +164,12 @@ will warn). Then check these on a Mac in roughly this order:
    the dot is green and a note-on advances the playlist. This is the first run of the UMP
    event-list code (`MidiNoteListener.packetWords`); if the trigger never fires, start there.
 6. **Closing songs.** With Reason open, advance between two songs. The first should close
-   through File > Close with no AppleScript prompt. If the menu item is not found by title, the
+   through File > Close with no AppleScript prompt. Reason is **not** brought to the front first
+   (that step was removed because macOS 14 ignores it). Check that the close still works while
+   another app is in front. If it fails, turn the old behavior back on and compare:
+   `defaults write com.reasonablelive.player activateReasonBeforeClose -bool YES`
+   (and `-bool NO` or `defaults delete com.reasonablelive.player activateReasonBeforeClose` to
+   turn it off). The log says which path ran. If the menu item is not found by title, the
    AppleScript fallback runs and macOS may ask for System Events access. Tell me if that
    happens: Reason's menu title may differ from "File" or "Close".
 7. **Drag and drop:** drag `.reason` files from Finder into the list (also try an empty
@@ -183,7 +186,8 @@ will warn). Then check these on a Mac in roughly this order:
 12. **Keep-awake:** while playing, `pmset -g assertions` should list "Reasonable Live Player"
     with a PreventUserIdleDisplaySleep or similar entry. After pausing it should be gone.
 13. **Undo:** remove a song, press ⌘Z. Check the Edit menu names the action.
-14. **Document features:** save a playlist, edit it, and check the dot in the close button.
+14. **Document features:** save a playlist, edit it, and check the title shows the playlist name
+    and the dot in the close button.
     Check File > Open Recent lists it, and that ⌘S saves without asking again.
 15. **Help window:** the ? button and Help > Reasonable Live Player Help open a separate window
     that can be resized and moved. It should not open by itself at launch.
@@ -192,7 +196,8 @@ will warn). Then check these on a Mac in roughly this order:
 17. **Appearance:** try Match System, Light and Dark in Settings.
 18. **Selecting songs:** click a song (it should highlight), press the up and down arrow keys
     (the highlight moves and the list scrolls), then press Return (it should play). Note whether
-    the first click on an inactive window selects the row or only activates the window.
+    the first click on an inactive window selects the row or only activates the window. A single
+    click on the song name (not just the edge of the row) should highlight it without playing.
 
 ## Signing and the Accessibility permission
 

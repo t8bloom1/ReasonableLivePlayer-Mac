@@ -290,7 +290,11 @@ private struct PlaylistView: View {
                         isPlaying: player.isPlaying,
                         fontSize: model.settings.songFontSize,
                         spacing: model.settings.songSpacing,
-                        showTooltips: model.settings.showTooltips
+                        showTooltips: model.settings.showTooltips,
+                        onSelect: {
+                            player.selectedSongID = song.id
+                            listHasFocus = true
+                        }
                     )
                     .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6))
                 }
@@ -309,7 +313,7 @@ private struct PlaylistView: View {
                 model.playSong(id: id)
                 return true
             }
-            .onChange(of: player.scrollRequest) { request in
+            .onChange(of: player.scrollRequest) { _, request in
                 guard let request else { return }
                 withAnimation { proxy.scrollTo(request.songID) }
             }
@@ -374,6 +378,8 @@ private struct SongRow: View {
     let fontSize: Double
     let spacing: Int
     let showTooltips: Bool
+    /// Single click: highlight the song without playing it.
+    let onSelect: () -> Void
 
     private var indicatorColor: Color {
         guard isActive else { return .clear }
@@ -404,8 +410,6 @@ private struct SongRow: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
-                .onTapGesture(count: 2) { model.playSong(id: song.id) }
                 .accessibilityAddTraits(isActive ? .isSelected : [])
 
             Button { player.removeSong(id: song.id) } label: {
@@ -420,5 +424,11 @@ private struct SongRow: View {
             .accessibilityLabel("Remove \(song.displayName)")
         }
         .padding(.top, CGFloat(spacing))
+        // A tap gesture on the row stops the list from seeing the click, so single and double
+        // clicks are handled here. The double-click handler must come first. The buttons inside
+        // the row handle their own clicks.
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) { model.playSong(id: song.id) }
+        .onTapGesture { onSelect() }
     }
 }

@@ -27,6 +27,8 @@ public enum AccessibilityPermission {
 /// document by choosing File > Close through the Accessibility API. If the menu item
 /// cannot be found, it falls back to the same AppleScript the .NET version used.
 public final class ReasonBridge: ReasonControlling {
+    private static let activateBeforeCloseKey = "activateReasonBeforeClose"
+
     public init() {}
 
     public func openSong(path: String) async {
@@ -42,8 +44,15 @@ public final class ReasonBridge: ReasonControlling {
             return
         }
 
-        reason.activate(options: [.activateIgnoringOtherApps])
-        try? await Task.sleep(nanoseconds: 300_000_000)
+        // Bringing Reason to the front is off by default: the menu press works on a background
+        // app, and macOS 14 ignores the old "activate ignoring other apps" option anyway. To test
+        // with activation, run:
+        //   defaults write com.reasonablelive.player activateReasonBeforeClose -bool YES
+        if UserDefaults.standard.bool(forKey: Self.activateBeforeCloseKey) {
+            RLPLog.info("Activating Reason before closing (activateReasonBeforeClose is on)")
+            _ = reason.activate()
+            try? await Task.sleep(nanoseconds: 300_000_000)
+        }
 
         switch Self.pressFileClose(pid: reason.processIdentifier) {
         case .pressed:
