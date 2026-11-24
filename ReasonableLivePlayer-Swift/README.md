@@ -12,7 +12,7 @@ with Swift 5.10 on Linux, and its 73 unit tests pass. The parts that need macOS 
 
 ## Requirements
 
-- macOS 13 (Ventura) or later
+- macOS 14 (Sonoma) or later
 - Xcode 15 or later (Swift 5.9). The command line tools alone are not enough for SwiftUI
   apps in most setups; install Xcode.
 
@@ -177,9 +177,7 @@ will warn). Then check these on a Mac in roughly this order:
 9. **Races:** press Skip repeatedly while playing, and send the trigger note twice quickly.
    Each song should open once.
 10. **Settings window:** the gear button and ⌘, should both open it, at a size that shows every
-    section without scrolling. On macOS 13 the button
-    sends `showSettingsWindow:`; on 14 and later it is a `SettingsLink`. Check which one you
-    have works.
+    section without scrolling.
 11. **Toolbar:** at each icon size (Small to Extra Large) check the bar grows to fit the icons and the
     window does not clip any button. Check dragging the window narrower at each size.
 12. **Keep-awake:** while playing, `pmset -g assertions` should list "Reasonable Live Player"

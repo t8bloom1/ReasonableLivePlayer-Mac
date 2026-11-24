@@ -180,26 +180,15 @@ private struct SavePlaylistButton: View {
     }
 }
 
-/// Opens the Settings window. macOS 14 added `SettingsLink`; on macOS 13 the window is opened
-/// by sending the standard action.
 @MainActor
 private struct SettingsButton: View {
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
-        if #available(macOS 14, *) {
-            SettingsLink {
-                ToolbarGlyph(title: "Settings", systemImage: "gearshape")
-            }
-            .tip("Settings (⌘,)", model.settings.showTooltips)
-        } else {
-            Button {
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-            } label: {
-                ToolbarGlyph(title: "Settings", systemImage: "gearshape")
-            }
-            .tip("Settings (⌘,)", model.settings.showTooltips)
+        SettingsLink {
+            ToolbarGlyph(title: "Settings", systemImage: "gearshape")
         }
+        .tip("Settings (⌘,)", model.settings.showTooltips)
     }
 }
 
@@ -252,16 +241,10 @@ private struct StatusDot: View {
 
 extension View {
     /// Calls `action` when Return or keypad Enter is pressed while this view has keyboard focus.
-    /// `action` returns true if it handled the key. `onKeyPress` needs macOS 14, so on macOS 13
-    /// the Return key does nothing (the arrow keys and double-click still work).
-    @ViewBuilder
+    /// `action` returns true if it handled the key.
     fileprivate func playsOnReturn(_ action: @escaping () -> Bool) -> some View {
-        if #available(macOS 14, *) {
-            self.onKeyPress(keys: [.return, KeyEquivalent("\u{3}")], phases: .down) { _ in
-                action() ? .handled : .ignored
-            }
-        } else {
-            self
+        onKeyPress(keys: [.return, KeyEquivalent("\u{3}")], phases: .down) { _ in
+            action() ? .handled : .ignored
         }
     }
 }
