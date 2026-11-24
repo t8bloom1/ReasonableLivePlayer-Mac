@@ -57,7 +57,7 @@ struct HelpView: View {
                     """)
 
                     section("Playing and pausing", """
-                    While playing, double-click a song to close the current one and jump to it. While paused, double-click (or click the arrow) to choose which song plays next. Drag rows to reorder them.
+                    Double-click a song to play it. While playing, the current song is closed and the one you chose opens. While paused, the chosen song opens and playback resumes. To choose the next song without starting it, click the arrow beside it while paused. Drag rows to reorder them.
                     """)
 
                 }

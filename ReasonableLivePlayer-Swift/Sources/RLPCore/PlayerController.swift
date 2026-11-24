@@ -228,8 +228,12 @@ public final class PlayerController: ObservableObject {
         beginTransition { [self] in
             // If another song is still open (the user selected a different one while paused),
             // close it first so Reason does not end up with two documents.
-            if let opened = openSong, opened.id != song.id { await closeOpenSong() }
-            if Task.isCancelled { return }
+            if let opened = openSong, opened.id != song.id {
+                await closeOpenSong()
+                if Task.isCancelled { return }
+                await sleeper(transitionDelaySec)   // same pause as between songs in a set
+                if Task.isCancelled { return }
+            }
             await open(song)
             if Task.isCancelled { return }
             statusText = "Playing: \(song.displayName)"
@@ -269,8 +273,8 @@ public final class PlayerController: ObservableObject {
         }
     }
 
-    /// Single or double click on a song. While playing: close the current song and jump to
-    /// it. While paused: make it the next song to play.
+    /// Click on a song's arrow. While playing: close the current song and jump to it. While
+    /// paused: make it the next song to play, without starting playback.
     public func selectSong(id: Song.ID) {
         guard let index = songs.firstIndex(where: { $0.id == id }) else { return }
         if inPlayMode {
@@ -293,6 +297,19 @@ public final class PlayerController: ObservableObject {
             setActive(index)
             statusText = "Next: \(songs[index].displayName)"
         }
+    }
+
+    /// Double-click on a song. While playing, same as `selectSong`: close the current song and
+    /// jump to it. While paused, select the song and start playing it.
+    public func playSong(id: Song.ID) {
+        guard let index = songs.firstIndex(where: { $0.id == id }) else { return }
+        if inPlayMode {
+            selectSong(id: id)
+            return
+        }
+        cancelTransition()
+        setActive(index)
+        play()
     }
 
     /// Called when the MIDI trigger note arrives.

@@ -6,7 +6,7 @@ same way: it opens Reason song files in order and advances when a MIDI trigger n
 
 **Status:** written without access to a Mac. The platform-independent core (models, JSON
 files, MIDI byte parsing, and the playlist state machine in `PlayerController`) was compiled
-with Swift 5.10 on Linux, and its 59 unit tests pass. The parts that need macOS frameworks
+with Swift 5.10 on Linux, and its 64 unit tests pass. The parts that need macOS frameworks
 (CoreMIDI, Accessibility, AppKit, SwiftUI) have not been compiled or run. See the
 [First build checklist](#first-build-checklist).
 
@@ -88,8 +88,10 @@ scripts/make-icon.py             regenerates Resources/icon.png (needs Pillow)
    at the first three bytes of each buffer.
 3. **Paused, select a song, trigger arrives.** The open song is closed and the pointer stays
    on the song you selected. The old code also moved the pointer one further.
-4. **Play after selecting a different song while paused** closes the song that is still open
-   first, so Reason does not end up with two documents.
+4. **Double-click a song while paused** selects it and starts playing it. Clicking the arrow
+   beside a song while paused still only queues it as the next song. Playing a song while a
+   different one is still open closes the open one first, waits the transition delay, then
+   opens the new one, so Reason does not end up with two documents.
 5. **Closing the Reason window** uses the Accessibility API directly (File > Close in
    Reason's menu bar). If that menu item is not found, it runs the same AppleScript as before.
    The scripted path needs a separate "control System Events" permission; the direct path does

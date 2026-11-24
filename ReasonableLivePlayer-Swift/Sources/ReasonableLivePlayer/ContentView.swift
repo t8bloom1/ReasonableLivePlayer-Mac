@@ -271,7 +271,7 @@ private struct SongRow: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Select this song")
+            .help("Make this the next song")
             .accessibilityLabel("Select \(song.displayName)")
 
             Image(systemName: "line.3.horizontal")
@@ -286,7 +286,7 @@ private struct SongRow: View {
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
-                .onTapGesture(count: 2) { player.selectSong(id: song.id) }
+                .onTapGesture(count: 2) { player.playSong(id: song.id) }
                 .accessibilityAddTraits(isActive ? .isSelected : [])
 
             Button { player.removeSong(id: song.id) } label: {

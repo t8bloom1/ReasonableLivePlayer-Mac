@@ -144,6 +144,58 @@ final class PlayerControllerTests: XCTestCase {
         XCTAssertEqual(c.statusText, "Ready: b")
     }
 
+    func testPlaySongWhilePausedStartsPlayingThatSong() async {
+        let (c, r) = make()
+        c.play(); await c.waitForTransition()
+        c.pause()
+        c.playSong(id: c.songs[2].id); await c.waitForTransition()
+        XCTAssertEqual(r.events, ["open:a.reason", "close:a.reason", "open:c.reason"])
+        XCTAssertEqual(c.activeIndex, 2)
+        XCTAssertTrue(c.isPlaying)
+        XCTAssertEqual(c.statusText, "Playing: c")
+    }
+
+    func testPlaySongWhenNothingHasStartedOpensIt() async {
+        let (c, r) = make()
+        c.playSong(id: c.songs[1].id); await c.waitForTransition()
+        XCTAssertEqual(r.events, ["open:b.reason"])
+        XCTAssertEqual(c.activeIndex, 1)
+        XCTAssertTrue(c.isPlaying)
+    }
+
+    func testPlaySongWhilePlayingJumps() async {
+        let (c, r) = make()
+        c.play(); await c.waitForTransition()
+        c.playSong(id: c.songs[2].id); await c.waitForTransition()
+        XCTAssertEqual(r.events, ["open:a.reason", "close:a.reason", "open:c.reason"])
+        XCTAssertTrue(c.isPlaying)
+    }
+
+    func testPlaySongOnTheOpenSongDoesNotCloseIt() async {
+        let (c, r) = make()
+        c.play(); await c.waitForTransition()
+        c.pause()
+        c.playSong(id: c.songs[0].id); await c.waitForTransition()
+        XCTAssertEqual(r.events, ["open:a.reason", "open:a.reason"])   // re-open is a no-op in Reason
+        XCTAssertTrue(c.isPlaying)
+    }
+
+    func testPlaySongWhilePausedSupersedesARunningTransition() async {
+        let gate = Gate()
+        let (c, r) = make(sleeper: { _ in await gate.wait() })
+        c.play(); await c.waitForTransition()
+        c.handleTrigger()                                   // a closes, b pending behind the delay
+        await waitUntil { gate.waiterCount == 1 }
+        c.pause()
+        c.playSong(id: c.songs[2].id)                       // cancels the pending open of b
+        gate.releaseAll()
+        await waitUntil { gate.waiterCount == 0 && !r.events.isEmpty }
+        await c.waitForTransition()
+        XCTAssertEqual(r.events, ["open:a.reason", "close:a.reason", "open:c.reason"])
+        XCTAssertEqual(c.activeIndex, 2)
+        XCTAssertTrue(c.isPlaying)
+    }
+
     // MARK: Races the .NET version had
 
     func testTriggerDuringTransitionIsIgnored() async {
