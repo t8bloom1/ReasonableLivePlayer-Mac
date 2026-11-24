@@ -34,6 +34,10 @@ Reasonable Live Player is now a native macOS app written in Swift (SwiftUI, AppK
 - A playlist file that cannot be read shows an error instead of crashing.
 - Window position and size are saved by macOS.
 
+## 1.3.0 - 2026-10-09
+
+Last release of the Avalonia/.NET version. Remembers window position and size across sessions. The source remains in `ReasonableLivePlayer/`.
+
 ## 1.2.0
 
-Last tagged release of the Avalonia/.NET version. Configurable song spacing and font size, auto-scroll, tri-color status indicator, and play/pause improvements. Remembered window position and size was added after the tag. The source remains in `ReasonableLivePlayer/`.
+Configurable song spacing and font size, auto-scroll, tri-color status indicator, and play/pause improvements.

@@ -113,7 +113,7 @@ See [ReasonableLivePlayer-Swift/README.md](ReasonableLivePlayer-Swift/README.md)
 
 ### The 1.x .NET app
 
-The previous Avalonia/.NET version (1.2.0) is still in this repository, in `ReasonableLivePlayer/` and `ReasonableLivePlayer.Tests/`, with `build-mac.sh` to build it. It is no longer maintained. Building it requires the [.NET 8 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/8.0).
+The previous Avalonia/.NET version (1.3.0) is still in this repository, in `ReasonableLivePlayer/` and `ReasonableLivePlayer.Tests/`, with `build-mac.sh` to build it. It is no longer maintained. Building it requires the [.NET 8 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/8.0).
 
 ## Differences from the Windows Version
 
