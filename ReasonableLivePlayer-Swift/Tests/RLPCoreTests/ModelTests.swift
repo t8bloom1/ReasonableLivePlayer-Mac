@@ -135,13 +135,16 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(SettingsData().midiChannel, 1)
         XCTAssertEqual(SettingsData().transitionDelaySec, 5)
         XCTAssertEqual(SettingsData().appearance, .system)
+        XCTAssertTrue(SettingsData().showTooltips)
+        XCTAssertEqual(SettingsData().toolbarIconSize, .small)
     }
 
     func testRoundTrip() {
         let s = SettingsData(
             midiDeviceName: "IAC Driver Bus 1", midiChannel: 7, endNoteNumber: 64, transitionDelaySec: 12,
             lastPlaylistPath: "/tmp/set.rlp", loadLastPlaylist: true, alwaysOnTop: true,
-            songSpacing: 6, songFontSize: 17.5, appearance: .dark)
+            songSpacing: 6, songFontSize: 17.5, appearance: .dark,
+            showTooltips: false, toolbarIconSize: .large)
         let store = store()
         store.save(s)
         XCTAssertEqual(store.load(), s)
@@ -222,6 +225,31 @@ final class SettingsStoreTests: XCTestCase {
     func testCorruptLegacyFileIsIgnored() throws {
         let legacy = try writeLegacy("{ nope")
         XCTAssertEqual(store(legacy: legacy).load(), SettingsData())
+    }
+
+    func testTooltipsStayOnAndIconsSmallForOlderSettings() throws {
+        // Settings saved before these options existed must not turn tooltips off.
+        defaults.set(3, forKey: "midiChannel")
+        let loaded = store().load()
+        XCTAssertTrue(loaded.showTooltips)
+        XCTAssertEqual(loaded.toolbarIconSize, .small)
+        let legacy = try writeLegacy(#"{"MidiChannel":2}"#)
+        XCTAssertTrue(SettingsStore(defaults: UserDefaults(suiteName: suiteName + "-b")!, legacyURL: legacy).load().showTooltips)
+    }
+
+    func testTooltipAndIconSizeRoundTrip() {
+        let store = store()
+        var s = SettingsData()
+        s.showTooltips = false
+        s.toolbarIconSize = .medium
+        store.save(s)
+        XCTAssertFalse(store.load().showTooltips)
+        XCTAssertEqual(store.load().toolbarIconSize, .medium)
+    }
+
+    func testUnknownIconSizeFallsBackToSmall() throws {
+        defaults.set("huge", forKey: "toolbarIconSize")
+        XCTAssertEqual(store().load().toolbarIconSize, .small)
     }
 
     func testUnknownAppearanceInLegacyFileFallsBackToSystem() throws {

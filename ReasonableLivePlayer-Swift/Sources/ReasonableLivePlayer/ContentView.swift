@@ -23,20 +23,34 @@ struct ContentView: View {
         .navigationTitle(model.windowTitle)
         .hidingToolbarTitle()
         .toolbar {
-            ToolbarItem(placement: .navigation) { TransportButtons() }
-            ToolbarItem(placement: .primaryAction) { FileButtons() }
-            ToolbarItem(placement: .primaryAction) { StatusButtons() }
+            // Each button is its own toolbar item. Wrapping several buttons in one HStack made
+            // them a single custom-view item, which lost the tooltips.
+            ToolbarItemGroup(placement: .navigation) {
+                PlayPauseButton()
+                SkipButton()
+            }
+            ToolbarItemGroup(placement: .primaryAction) {
+                AddSongsButton()
+                OpenPlaylistButton()
+                SavePlaylistButton()
+                SettingsButton()
+                HelpButton()
+                StayOnTopToggle()
+                StatusDot()
+            }
         }
         .background(WindowAccessor { window in model.attach(window: window) })
-        .sheet(isPresented: $model.showHelp) {
-            HelpView()
-        }
     }
 }
 
 // MARK: - Toolbar
 
 extension View {
+    /// A tooltip that can be switched off in Settings.
+    fileprivate func tip(_ text: String, _ enabled: Bool) -> some View {
+        help(enabled ? text : "")
+    }
+
     /// Removes the window title from the toolbar row so it does not take up width. Uses the
     /// SwiftUI API on macOS 15 and later (when built with Xcode 16 or later). `AppModel.attach`
     /// also hides it through AppKit, which covers earlier systems.
@@ -54,88 +68,105 @@ extension View {
     }
 }
 
-@MainActor
-private struct TransportButtons: View {
-    @EnvironmentObject private var model: AppModel
-    @EnvironmentObject private var player: PlayerController
+extension ToolbarIconSize {
+    /// Symbol font for toolbar icons. Small is the system default, which is the original size.
+    fileprivate var symbolFont: Font? {
+        switch self {
+        case .small: return nil
+        case .medium: return .system(size: 17)
+        case .large: return .system(size: 22)
+        }
+    }
 
-    var body: some View {
-        HStack(spacing: 4) {
-            Button {
-                if player.isPlaying { player.pause() } else { player.play() }
-            } label: {
-                Label(player.isPlaying ? "Pause" : "Play",
-                      systemImage: player.isPlaying ? "pause.fill" : "play.fill")
-                    .labelStyle(.iconOnly)
-            }
-            .help(player.isPlaying ? "Pause (⌘↩)" : "Play (⌘↩)")
-            .disabled(player.songs.isEmpty || !model.accessibilityGranted)
-
-            Button { player.skip() } label: {
-                Label("Skip to Next Song", systemImage: "forward.end.fill").labelStyle(.iconOnly)
-            }
-            .help("Skip to next song (⌘→)")
-            .disabled(player.songs.isEmpty)
+    fileprivate var statusDotDiameter: CGFloat {
+        switch self {
+        case .small: return 12
+        case .medium: return 15
+        case .large: return 18
         }
     }
 }
 
+/// An icon-only label sized by the toolbar icon size setting.
 @MainActor
-private struct FileButtons: View {
+private struct ToolbarGlyph: View {
     @EnvironmentObject private var model: AppModel
-    @EnvironmentObject private var player: PlayerController
+    let title: String
+    let systemImage: String
 
     var body: some View {
-        HStack(spacing: 4) {
-            Button { model.addSongsViaPanel() } label: {
-                Label("Add Songs", systemImage: "plus").labelStyle(.iconOnly)
-            }
-            .help("Add songs (⇧⌘O)")
-
-            Button { model.loadPlaylistViaPanel() } label: {
-                Label("Open Playlist", systemImage: "folder").labelStyle(.iconOnly)
-            }
-            .help("Open playlist (⌘O)")
-
-            Button { model.savePlaylist() } label: {
-                Label("Save Playlist", systemImage: "square.and.arrow.down").labelStyle(.iconOnly)
-            }
-            .help("Save playlist (⌘S)")
-            .disabled(player.songs.isEmpty)
-        }
+        Label(title, systemImage: systemImage)
+            .labelStyle(.iconOnly)
+            .font(model.settings.toolbarIconSize.symbolFont)
     }
 }
 
 @MainActor
-private struct StatusButtons: View {
+private struct PlayPauseButton: View {
+    @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var player: PlayerController
+
+    var body: some View {
+        Button {
+            if player.isPlaying { player.pause() } else { player.play() }
+        } label: {
+            ToolbarGlyph(title: player.isPlaying ? "Pause" : "Play",
+                         systemImage: player.isPlaying ? "pause.fill" : "play.fill")
+        }
+        .tip(player.isPlaying ? "Pause (⌘↩)" : "Play (⌘↩)", model.settings.showTooltips)
+        .disabled(player.songs.isEmpty || !model.accessibilityGranted)
+    }
+}
+
+@MainActor
+private struct SkipButton: View {
+    @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var player: PlayerController
+
+    var body: some View {
+        Button { player.skip() } label: {
+            ToolbarGlyph(title: "Skip to Next Song", systemImage: "forward.end.fill")
+        }
+        .tip("Skip to next song (⌘→)", model.settings.showTooltips)
+        .disabled(player.songs.isEmpty)
+    }
+}
+
+@MainActor
+private struct AddSongsButton: View {
     @EnvironmentObject private var model: AppModel
 
     var body: some View {
-        HStack(spacing: 6) {
-            SettingsButton()
-
-            Button { model.showHelp = true } label: {
-                Label("Help", systemImage: "questionmark.circle").labelStyle(.iconOnly)
-            }
-            .help("Help")
-
-            Toggle(isOn: Binding(
-                get: { model.settings.alwaysOnTop },
-                set: { value in model.update { $0.alwaysOnTop = value } }
-            )) {
-                Label("Stay on Top", systemImage: "pin.fill").labelStyle(.iconOnly)
-            }
-            .toggleStyle(.button)
-            .help("Stay on top of other windows")
-
-            Circle()
-                .fill(model.statusIndicatorColor)
-                .frame(width: 12, height: 12)
-                .help(model.statusIndicatorTooltip)
-                .accessibilityElement()
-                .accessibilityLabel("Status")
-                .accessibilityValue(model.statusIndicatorTooltip)
+        Button { model.addSongsViaPanel() } label: {
+            ToolbarGlyph(title: "Add Songs", systemImage: "plus")
         }
+        .tip("Add songs (⇧⌘O)", model.settings.showTooltips)
+    }
+}
+
+@MainActor
+private struct OpenPlaylistButton: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        Button { model.loadPlaylistViaPanel() } label: {
+            ToolbarGlyph(title: "Open Playlist", systemImage: "folder")
+        }
+        .tip("Open playlist (⌘O)", model.settings.showTooltips)
+    }
+}
+
+@MainActor
+private struct SavePlaylistButton: View {
+    @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var player: PlayerController
+
+    var body: some View {
+        Button { model.savePlaylist() } label: {
+            ToolbarGlyph(title: "Save Playlist", systemImage: "square.and.arrow.down")
+        }
+        .tip("Save playlist (⌘S)", model.settings.showTooltips)
+        .disabled(player.songs.isEmpty)
     }
 }
 
@@ -143,20 +174,67 @@ private struct StatusButtons: View {
 /// by sending the standard action.
 @MainActor
 private struct SettingsButton: View {
+    @EnvironmentObject private var model: AppModel
+
     var body: some View {
         if #available(macOS 14, *) {
             SettingsLink {
-                Label("Settings", systemImage: "gearshape").labelStyle(.iconOnly)
+                ToolbarGlyph(title: "Settings", systemImage: "gearshape")
             }
-            .help("Settings (⌘,)")
+            .tip("Settings (⌘,)", model.settings.showTooltips)
         } else {
             Button {
                 NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
             } label: {
-                Label("Settings", systemImage: "gearshape").labelStyle(.iconOnly)
+                ToolbarGlyph(title: "Settings", systemImage: "gearshape")
             }
-            .help("Settings (⌘,)")
+            .tip("Settings (⌘,)", model.settings.showTooltips)
         }
+    }
+}
+
+@MainActor
+private struct HelpButton: View {
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Button { openWindow(id: HelpWindow.id) } label: {
+            ToolbarGlyph(title: "Help", systemImage: "questionmark.circle")
+        }
+        .tip("Help", model.settings.showTooltips)
+    }
+}
+
+@MainActor
+private struct StayOnTopToggle: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        Toggle(isOn: Binding(
+            get: { model.settings.alwaysOnTop },
+            set: { value in model.update { $0.alwaysOnTop = value } }
+        )) {
+            ToolbarGlyph(title: "Stay on Top", systemImage: "pin.fill")
+        }
+        .toggleStyle(.button)
+        .tip("Stay on top of other windows", model.settings.showTooltips)
+    }
+}
+
+@MainActor
+private struct StatusDot: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        let diameter = model.settings.toolbarIconSize.statusDotDiameter
+        Circle()
+            .fill(model.statusIndicatorColor)
+            .frame(width: diameter, height: diameter)
+            .tip(model.statusIndicatorTooltip, model.settings.showTooltips)
+            .accessibilityElement()
+            .accessibilityLabel("Status")
+            .accessibilityValue(model.statusIndicatorTooltip)
     }
 }
 
@@ -199,7 +277,8 @@ private struct PlaylistView: View {
                         isActive: song.id == activeID,
                         isPlaying: player.isPlaying,
                         fontSize: model.settings.songFontSize,
-                        spacing: model.settings.songSpacing
+                        spacing: model.settings.songSpacing,
+                        showTooltips: model.settings.showTooltips
                     )
                     .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6))
                 }
@@ -274,6 +353,7 @@ private struct SongRow: View {
     let isPlaying: Bool
     let fontSize: Double
     let spacing: Int
+    let showTooltips: Bool
 
     private var indicatorColor: Color {
         guard isActive else { return .clear }
@@ -290,7 +370,7 @@ private struct SongRow: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Make this the next song")
+            .tip("Make this the next song", showTooltips)
             .accessibilityLabel("Select \(song.displayName)")
 
             Image(systemName: "line.3.horizontal")
@@ -316,7 +396,7 @@ private struct SongRow: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .help("Remove from playlist")
+            .tip("Remove from playlist", showTooltips)
             .accessibilityLabel("Remove \(song.displayName)")
         }
         .padding(.top, CGFloat(spacing))

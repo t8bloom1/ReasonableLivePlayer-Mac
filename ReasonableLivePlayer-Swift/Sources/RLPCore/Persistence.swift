@@ -41,6 +41,8 @@ public struct SettingsStore {
         static let songSpacing = "songSpacing"
         static let songFontSize = "songFontSize"
         static let appearance = "appearance"
+        static let showTooltips = "showTooltips"
+        static let toolbarIconSize = "toolbarIconSize"
     }
 
     public init(defaults: UserDefaults = .standard, legacyURL: URL? = SettingsStore.defaultLegacyURL) {
@@ -74,6 +76,10 @@ public struct SettingsStore {
         if let raw = defaults.string(forKey: Key.appearance), let mode = AppearanceMode(rawValue: raw) {
             s.appearance = mode
         }
+        if has(Key.showTooltips) { s.showTooltips = defaults.bool(forKey: Key.showTooltips) }
+        if let raw = defaults.string(forKey: Key.toolbarIconSize), let size = ToolbarIconSize(rawValue: raw) {
+            s.toolbarIconSize = size
+        }
         if s.transitionDelaySec < 0 { s.transitionDelaySec = SettingsData.defaultTransitionDelaySec }
         return s
     }
@@ -89,6 +95,8 @@ public struct SettingsStore {
         defaults.set(s.songSpacing, forKey: Key.songSpacing)
         defaults.set(s.songFontSize, forKey: Key.songFontSize)
         defaults.set(s.appearance.rawValue, forKey: Key.appearance)
+        defaults.set(s.showTooltips, forKey: Key.showTooltips)
+        defaults.set(s.toolbarIconSize.rawValue, forKey: Key.toolbarIconSize)
     }
 
     private func has(_ key: String) -> Bool { defaults.object(forKey: key) != nil }

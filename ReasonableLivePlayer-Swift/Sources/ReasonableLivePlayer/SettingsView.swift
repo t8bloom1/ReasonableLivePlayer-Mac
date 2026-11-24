@@ -2,7 +2,8 @@ import SwiftUI
 import RLPCore
 
 /// Contents of the standard Settings window (⌘,). Changes apply immediately, as is usual for
-/// Mac preferences, so there are no Save or Cancel buttons.
+/// Mac preferences, so there are no Save or Cancel buttons. The window opens at the height of
+/// the form, so nothing needs scrolling.
 @MainActor
 struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
@@ -44,6 +45,16 @@ struct SettingsView: View {
                 }
             }
 
+            Section("Toolbar") {
+                Picker("Icon size", selection: binding(\.toolbarIconSize)) {
+                    ForEach(ToolbarIconSize.allCases) { size in
+                        Text(size.label).tag(size)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Toggle("Show tooltips", isOn: binding(\.showTooltips))
+            }
+
             Section("General") {
                 Toggle("Load last playlist on startup", isOn: binding(\.loadLastPlaylist))
                 Toggle("Always on top", isOn: binding(\.alwaysOnTop))
@@ -68,7 +79,11 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: 460, height: 600)
+        // Size the window to the form: the height is whatever the settings need (no scrolling),
+        // and the width can be dragged wider.
+        .scrollDisabled(true)
+        .frame(minWidth: 440, idealWidth: 480, maxWidth: 760)
+        .fixedSize(horizontal: false, vertical: true)
     }
 
     /// Detected devices, plus the saved one so an offline device stays visible.

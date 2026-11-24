@@ -6,7 +6,7 @@ same way: it opens Reason song files in order and advances when a MIDI trigger n
 
 **Status:** written without access to a Mac. The platform-independent core (models, JSON
 files, MIDI byte parsing, and the playlist state machine in `PlayerController`) was compiled
-with Swift 5.10 on Linux, and its 64 unit tests pass. The parts that need macOS frameworks
+with Swift 5.10 on Linux, and its 67 unit tests pass. The parts that need macOS frameworks
 (CoreMIDI, Accessibility, AppKit, SwiftUI) have not been compiled or run. See the
 [First build checklist](#first-build-checklist).
 
@@ -109,7 +109,9 @@ scripts/make-icon.py             regenerates Resources/icon.png (needs Pillow)
     app holds a power assertion that blocks idle sleep and App Nap and keeps the display on. Without it,
     macOS can delay the app's timers while Reason is in front.
 13. **Standard Settings window** (⌘,) replaces the settings dialog. Changes apply immediately.
-    The values are set with steppers and pickers, so there is no validation dialog.
+    The values are set with steppers and pickers, so there is no validation dialog. The window
+    opens at the height of its contents, so nothing needs scrolling, and its width can be
+    dragged wider.
 14. **Undo and Redo** for adding, removing, reordering and opening playlists (up to 50 steps).
 15. **Open Recent**, **Save** and **Save As**. The unsaved-changes dot shows in the close button.
     The window title (the playlist name) is hidden so it does not take up toolbar width, but it
@@ -120,6 +122,12 @@ scripts/make-icon.py             regenerates Resources/icon.png (needs Pillow)
     can be set to Match System, Light or Dark in Settings.
 18. **New app icon** (rounded macOS-style shape), standard About panel, VoiceOver labels on the
     icon-only buttons, and logging to the unified log (see below).
+
+19. **Toolbar settings.** Settings has a Toolbar section with an icon size (Small, Medium, Large;
+    Small is the original size) and a switch for tooltips (on by default). The tooltip switch
+    also covers the buttons in the playlist rows.
+20. **Help opens in its own resizable window**, like Settings, instead of a fixed sheet over the
+    playlist.
 
 Other shortcuts: ⌘O open playlist, ⇧⌘O add songs, ⌘S save, ⇧⌘S save as, ⌘Z / ⇧⌘Z undo and redo.
 
@@ -162,7 +170,8 @@ will warn). Then check these on a Mac in roughly this order:
    playlist.
 9. **Races:** press Skip repeatedly while playing, and send the trigger note twice quickly.
    Each song should open once.
-10. **Settings window:** the gear button and ⌘, should both open it. On macOS 13 the button
+10. **Settings window:** the gear button and ⌘, should both open it, at a size that shows every
+    section without scrolling. On macOS 13 the button
     sends `showSettingsWindow:`; on 14 and later it is a `SettingsLink`. Check which one you
     have works.
 11. **Toolbar:** check the buttons fit at the default window width, and that nothing is
@@ -172,7 +181,11 @@ will warn). Then check these on a Mac in roughly this order:
 13. **Undo:** remove a song, press ⌘Z. Check the Edit menu names the action.
 14. **Document features:** save a playlist, check the title and proxy icon, edit it, and check
     the dot in the close button. Check File > Open Recent lists it.
-15. **Appearance:** try Match System, Light and Dark in Settings.
+15. **Help window:** the ? button and Help > Reasonable Live Player Help open a separate window
+    that can be resized and moved. It should not open by itself at launch.
+16. **Toolbar tooltips and sizes:** hover over each toolbar button and check the tooltip. Switch
+    tooltips off, then Medium and Large icons, in Settings.
+17. **Appearance:** try Match System, Light and Dark in Settings.
 
 ## Signing and the Accessibility permission
 

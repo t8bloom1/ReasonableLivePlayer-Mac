@@ -24,7 +24,6 @@ final class AppModel: ObservableObject {
     @Published private(set) var currentPlaylistURL: URL? = nil {
         didSet { updateWindowChrome() }
     }
-    @Published var showHelp = false
 
     private let store: SettingsStore
     private let midi = MidiNoteListener()

@@ -19,6 +19,12 @@ struct ReasonableLivePlayerApp: App {
         .defaultSize(width: 420, height: 520)
         .commands { AppCommands(model: model, player: model.player) }
 
+        // Help opens in its own resizable window, like Settings.
+        Window("\(AppModel.appName) Help", id: HelpWindow.id) {
+            HelpView()
+        }
+        .defaultSize(width: 520, height: 680)
+
         // The standard Settings window (⌘,).
         Settings {
             SettingsView()
@@ -32,6 +38,7 @@ struct ReasonableLivePlayerApp: App {
 struct AppCommands: Commands {
     @ObservedObject var model: AppModel
     @ObservedObject var player: PlayerController
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
@@ -86,7 +93,7 @@ struct AppCommands: Commands {
         }
 
         CommandGroup(replacing: .help) {
-            Button("\(AppModel.appName) Help") { model.showHelp = true }
+            Button("\(AppModel.appName) Help") { openWindow(id: HelpWindow.id) }
         }
     }
 }

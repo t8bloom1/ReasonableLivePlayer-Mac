@@ -60,6 +60,21 @@ public enum AppearanceMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+/// Size of the toolbar icons. Small is the original size.
+public enum ToolbarIconSize: String, Codable, CaseIterable, Identifiable {
+    case small, medium, large
+
+    public var id: String { rawValue }
+
+    public var label: String {
+        switch self {
+        case .small: return "Small"
+        case .medium: return "Medium"
+        case .large: return "Large"
+        }
+    }
+}
+
 /// User settings. Stored in UserDefaults by `SettingsStore`. The `Codable` conformance exists
 /// so the `settings.json` written by the .NET version can be imported once; its key names
 /// are kept for that reason.
@@ -74,6 +89,8 @@ public struct SettingsData: Codable, Equatable {
     public var songSpacing: Int          // 0-20 points between songs
     public var songFontSize: Double      // 10-24
     public var appearance: AppearanceMode
+    public var showTooltips: Bool
+    public var toolbarIconSize: ToolbarIconSize
 
     public static let defaultTransitionDelaySec = 5
 
@@ -87,7 +104,9 @@ public struct SettingsData: Codable, Equatable {
         alwaysOnTop: Bool = false,
         songSpacing: Int = 0,
         songFontSize: Double = 13,
-        appearance: AppearanceMode = .system
+        appearance: AppearanceMode = .system,
+        showTooltips: Bool = true,
+        toolbarIconSize: ToolbarIconSize = .small
     ) {
         self.midiDeviceName = midiDeviceName
         self.midiChannel = midiChannel
@@ -99,6 +118,8 @@ public struct SettingsData: Codable, Equatable {
         self.songSpacing = songSpacing
         self.songFontSize = songFontSize
         self.appearance = appearance
+        self.showTooltips = showTooltips
+        self.toolbarIconSize = toolbarIconSize
     }
 
     enum CodingKeys: String, CodingKey {
@@ -112,6 +133,8 @@ public struct SettingsData: Codable, Equatable {
         case songSpacing = "SongSpacing"
         case songFontSize = "SongFontSize"
         case appearance = "Appearance"
+        case showTooltips = "ShowTooltips"
+        case toolbarIconSize = "ToolbarIconSize"
     }
 
     /// Tolerant decoding: any missing key takes its default, as the .NET record did.
@@ -129,6 +152,8 @@ public struct SettingsData: Codable, Equatable {
         songSpacing = try c.decodeIfPresent(Int.self, forKey: .songSpacing) ?? 0
         songFontSize = try c.decodeIfPresent(Double.self, forKey: .songFontSize) ?? 13
         appearance = (try? c.decodeIfPresent(AppearanceMode.self, forKey: .appearance)) ?? .system
+        showTooltips = try c.decodeIfPresent(Bool.self, forKey: .showTooltips) ?? true
+        toolbarIconSize = (try? c.decodeIfPresent(ToolbarIconSize.self, forKey: .toolbarIconSize)) ?? .small
     }
 }
 
