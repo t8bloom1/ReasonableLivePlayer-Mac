@@ -46,8 +46,8 @@ Package.swift
 Sources/RLPCore/                 no SwiftUI; unit tested
   Models.swift                   Song, PlaylistData, SettingsData, Array.movingItems
   Persistence.swift              .rlp files and settings.json
-  MidiParsing.swift              raw MIDI bytes -> messages, note-on matching
-  MidiNoteListener.swift         CoreMIDI input
+  MidiParsing.swift              UMP words -> MIDI messages, note-on matching
+  MidiNoteListener.swift         CoreMIDI input (UMP event API)
   ReasonBridge.swift             open songs, close via Accessibility, permission check
   PlayerController.swift         playlist + playback state machine
 Sources/ReasonableLivePlayer/    SwiftUI app
@@ -78,8 +78,10 @@ scripts/build-app.sh
    task. A MIDI trigger that arrives while a transition is running is ignored. Skip or select
    during a transition cancels it and starts the new one. A song is closed at most once. The
    old code could run two overlapping transitions and close the wrong window.
-2. **Whole MIDI buffer is parsed.** The old code looked only at the first three bytes of each
-   message buffer. Now every message in the buffer is checked, including running status.
+2. **Current CoreMIDI API.** Input uses `MIDIInputPortCreateWithProtocol` and Universal MIDI
+   Packets, requested in MIDI 1.0 form (CoreMIDI translates MIDI 2.0 devices), instead of the
+   deprecated packet-list API. Every message in an event is checked. The old code looked only
+   at the first three bytes of each buffer.
 3. **Paused, select a song, trigger arrives.** The open song is closed and the pointer stays
    on the song you selected. The old code also moved the pointer one further.
 4. **Play after selecting a different song while paused** closes the song that is still open
@@ -103,8 +105,8 @@ scripts/build-app.sh
 ## First build checklist
 
 The macOS-specific code was reviewed by reading, not by compiling. Expect to fix a few compiler
-errors or warnings (CoreMIDI's older packet API is deprecated and will warn). Then check these
-on a Mac in roughly this order:
+errors or warnings (`NSRunningApplication.activate(options:)` is deprecated on macOS 14 and
+will warn). Then check these on a Mac in roughly this order:
 
 1. `swift build` and `swift test`. If a test fails, tell me which; the tests encode the
    behavior listed above.
@@ -117,7 +119,8 @@ on a Mac in roughly this order:
    saved a different name format than CoreMIDI's display name; the app matches by display name,
    plain name, and display-name prefix.
 5. **MIDI trigger.** Set channel and note to match a Reason External MIDI Instrument. Confirm
-   the dot is green and a note-on advances the playlist.
+   the dot is green and a note-on advances the playlist. This is the first run of the UMP
+   event-list code (`MidiNoteListener.packetWords`); if the trigger never fires, start there.
 6. **Closing songs.** With Reason open, advance between two songs. The first should close
    through File > Close with no AppleScript prompt. If the menu item is not found by title, the
    AppleScript fallback runs and macOS may ask for System Events access. Tell me if that

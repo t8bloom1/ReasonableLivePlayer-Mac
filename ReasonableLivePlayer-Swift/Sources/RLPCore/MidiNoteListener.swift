@@ -91,10 +91,13 @@ public final class MidiNoteListener {
         }
 
         var newPort = MIDIPortRef()
-        let created = MIDIInputPortCreateWithBlock(client, "ReasonableLivePlayer Input" as CFString, &newPort) {
-            [weak self] packetList, _ in
-            for bytes in Self.packetBytes(packetList) {
-                for message in MidiParser.parse(bytes)
+        // Ask for the MIDI 1.0 protocol: CoreMIDI translates anything newer, so channel voice
+        // messages arrive as single-word UMPs.
+        let created = MIDIInputPortCreateWithProtocol(
+            client, "ReasonableLivePlayer Input" as CFString, ._1_0, &newPort
+        ) { [weak self] eventList, _ in
+            for words in Self.packetWords(eventList) {
+                for message in UMPParser.parse(words)
                 where message.isNoteOn(channel: channel, note: noteNumber) {
                     self?.onTrigger?()
                 }
@@ -142,23 +145,29 @@ public final class MidiNoteListener {
 
     // MARK: - Packet decoding
 
-    /// Copies the data bytes of each packet in a `MIDIPacketList`. Walks the list with
-    /// `MIDIPacketNext` over the original memory, never over a copy.
-    private static func packetBytes(_ list: UnsafePointer<MIDIPacketList>) -> [[UInt8]] {
-        var result: [[UInt8]] = []
+    /// Copies the UMP words of each packet in a `MIDIEventList`. Walks the list with
+    /// `MIDIEventPacketNext` over the original memory, never over a copy, and reads with
+    /// unaligned loads because CoreMIDI packs these structures.
+    private static func packetWords(_ list: UnsafePointer<MIDIEventList>) -> [[UInt32]] {
+        var result: [[UInt32]] = []
         let count = Int(list.pointee.numPackets)
         guard count > 0,
-              let packetOffset = MemoryLayout<MIDIPacketList>.offset(of: \MIDIPacketList.packet),
-              let dataOffset = MemoryLayout<MIDIPacket>.offset(of: \MIDIPacket.data) else { return result }
+              let packetOffset = MemoryLayout<MIDIEventList>.offset(of: \MIDIEventList.packet),
+              let countOffset = MemoryLayout<MIDIEventPacket>.offset(of: \MIDIEventPacket.wordCount),
+              let wordsOffset = MemoryLayout<MIDIEventPacket>.offset(of: \MIDIEventPacket.words)
+        else { return result }
 
-        var current = UnsafeRawPointer(list).advanced(by: packetOffset).assumingMemoryBound(to: MIDIPacket.self)
+        var current = UnsafeRawPointer(list).advanced(by: packetOffset).assumingMemoryBound(to: MIDIEventPacket.self)
         for _ in 0..<count {
-            let length = Int(current.pointee.length)
-            if length > 0 {
-                let data = UnsafeRawPointer(current).advanced(by: dataOffset).assumingMemoryBound(to: UInt8.self)
-                result.append(Array(UnsafeBufferPointer(start: data, count: length)))
+            let raw = UnsafeRawPointer(current)
+            let wordCount = min(64, Int(raw.loadUnaligned(fromByteOffset: countOffset, as: UInt32.self)))
+            var words: [UInt32] = []
+            words.reserveCapacity(wordCount)
+            for index in 0..<wordCount {
+                words.append(raw.loadUnaligned(fromByteOffset: wordsOffset + index * 4, as: UInt32.self))
             }
-            current = UnsafePointer(MIDIPacketNext(current))
+            result.append(words)
+            current = UnsafePointer(MIDIEventPacketNext(current))
         }
         return result
     }

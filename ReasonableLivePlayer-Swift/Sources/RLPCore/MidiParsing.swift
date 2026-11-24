@@ -22,76 +22,45 @@ public struct MidiMessage: Equatable {
     }
 }
 
-public enum MidiParser {
-    /// Splits a raw MIDI byte buffer into channel messages. Handles several messages in
-    /// one buffer, running status, interleaved real-time bytes and SysEx (which is skipped).
-    /// Malformed input is skipped; this never loops forever.
-    public static func parse(_ bytes: [UInt8]) -> [MidiMessage] {
+/// Reads Universal MIDI Packet (UMP) words, the format CoreMIDI's current API delivers.
+///
+/// The app asks CoreMIDI for the MIDI 1.0 protocol, so channel voice messages arrive as
+/// single 32-bit words (message type 2): `0x2 | group | status | data1 | data2`. CoreMIDI
+/// translates MIDI 2.0 devices down to that form. Every other message type is skipped, using
+/// its size from the UMP specification so the words after it stay aligned.
+public enum UMPParser {
+    /// Size in 32-bit words of a UMP whose first word has this message type (top nibble).
+    static func wordCount(forMessageType type: UInt32) -> Int {
+        switch type {
+        case 0x0, 0x1, 0x2, 0x6, 0x7: return 1
+        case 0x3, 0x4, 0x8, 0x9, 0xA: return 2
+        case 0xB, 0xC: return 3
+        default: return 4                 // 0x5, 0xD, 0xE, 0xF
+        }
+    }
+
+    /// Extracts the MIDI 1.0 channel voice messages from a packet's words. The UMP group
+    /// (virtual cable) is ignored. A truncated trailing message is dropped.
+    public static func parse(_ words: [UInt32]) -> [MidiMessage] {
         var messages: [MidiMessage] = []
-        var running: UInt8 = 0
         var i = 0
-        let n = bytes.count
+        while i < words.count {
+            let word = words[i]
+            let type = word >> 28
+            let size = wordCount(forMessageType: type)
+            guard i + size <= words.count else { break }
 
-        while i < n {
-            let b = bytes[i]
-
-            if b >= 0xF8 {                       // real-time: ignore, keeps running status
-                i += 1
-                continue
-            }
-            if b >= 0xF0 {                       // system common / SysEx: cancels running status
-                running = 0
-                i += 1
-                if b == 0xF0 {
-                    while i < n && bytes[i] != 0xF7 { i += 1 }
-                    if i < n { i += 1 }          // consume EOX
-                } else if b == 0xF1 || b == 0xF3 {
-                    i += 1
-                } else if b == 0xF2 {
-                    i += 2
+            if type == 0x2 {
+                let status = UInt8((word >> 16) & 0xFF)
+                if status >= 0x80 && status < 0xF0 {
+                    messages.append(MidiMessage(
+                        status: status,
+                        data1: UInt8((word >> 8) & 0x7F),
+                        data2: UInt8(word & 0x7F)))
                 }
-                continue
             }
-
-            var status = running
-            if b & 0x80 != 0 {
-                status = b
-                running = b
-                i += 1
-            } else if running == 0 {             // data byte with no status: drop
-                i += 1
-                continue
-            }
-
-            let kind = status & 0xF0
-            let dataLength = (kind == 0xC0 || kind == 0xD0) ? 1 : 2
-            guard i + dataLength <= n else { break }
-
-            let d1 = bytes[i]
-            let d2: UInt8 = dataLength == 2 ? bytes[i + 1] : 0
-            if d1 & 0x80 != 0 { continue }       // next loop treats it as a new status byte
-            if dataLength == 2 && d2 & 0x80 != 0 {
-                i += 1                           // skip d1, next loop treats d2 as a status byte
-                continue
-            }
-
-            messages.append(MidiMessage(status: status, data1: d1, data2: d2))
-            i += dataLength
+            i += size
         }
         return messages
-    }
-}
-
-public enum MidiNoteMatcher {
-    /// Matches a packed message (`status | note << 8 | velocity << 16`) against a channel
-    /// (0-15) and note (0-127). Same contract as the original `IsMatchingNoteOn`.
-    public static func isMatchingNoteOn(midiData: Int, channel: Int, noteNumber: Int) -> Bool {
-        let status = midiData & 0xFF
-        let note = (midiData >> 8) & 0x7F
-        let velocity = (midiData >> 16) & 0x7F
-        return (status & 0xF0) == 0x90
-            && (status & 0x0F) == channel
-            && note == noteNumber
-            && velocity > 0
     }
 }
