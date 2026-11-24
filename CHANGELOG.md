@@ -36,4 +36,4 @@ Reasonable Live Player is now a native macOS app written in Swift (SwiftUI, AppK
 
 ## 1.2.0
 
-Last release of the Avalonia/.NET version. Configurable song spacing and font size, auto-scroll, tri-color status indicator, play/pause improvements, and remembered window position and size. Its source remains in `ReasonableLivePlayer/`.
+Last tagged release of the Avalonia/.NET version. Configurable song spacing and font size, auto-scroll, tri-color status indicator, and play/pause improvements. Remembered window position and size was added after the tag. The source remains in `ReasonableLivePlayer/`.
