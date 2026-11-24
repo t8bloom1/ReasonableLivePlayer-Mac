@@ -179,8 +179,8 @@ will warn). Then check these on a Mac in roughly this order:
 12. **Keep-awake:** while playing, `pmset -g assertions` should list "Reasonable Live Player"
     with a PreventUserIdleDisplaySleep or similar entry. After pausing it should be gone.
 13. **Undo:** remove a song, press ⌘Z. Check the Edit menu names the action.
-14. **Document features:** save a playlist, check the title and proxy icon, edit it, and check
-    the dot in the close button. Check File > Open Recent lists it.
+14. **Document features:** save a playlist, edit it, and check the dot in the close button.
+    Check File > Open Recent lists it, and that ⌘S saves without asking again.
 15. **Help window:** the ? button and Help > Reasonable Live Player Help open a separate window
     that can be resized and moved. It should not open by itself at launch.
 16. **Toolbar tooltips and sizes:** hover over each toolbar button and check the tooltip. Switch
