@@ -24,11 +24,10 @@ public enum AccessibilityPermission {
 }
 
 /// Opens songs with the default app for the file type and closes the front Reason
-/// document by choosing File > Close through the Accessibility API. If the menu item
-/// cannot be found, it falls back to the same AppleScript the .NET version used.
+/// document by choosing File > Close through the Accessibility API. File > Close only works
+/// while Reason is the frontmost app, so Reason is brought forward first when it is not. If the
+/// menu item cannot be found, it falls back to the same AppleScript the .NET version used.
 public final class ReasonBridge: ReasonControlling {
-    private static let activateBeforeCloseKey = "activateReasonBeforeClose"
-
     public init() {}
 
     public func openSong(path: String) async {
@@ -44,14 +43,12 @@ public final class ReasonBridge: ReasonControlling {
             return
         }
 
-        // Bringing Reason to the front is off by default: the menu press works on a background
-        // app, and macOS 14 ignores the old "activate ignoring other apps" option anyway. To test
-        // with activation, run:
-        //   defaults write com.reasonablelive.player activateReasonBeforeClose -bool YES
-        if UserDefaults.standard.bool(forKey: Self.activateBeforeCloseKey) {
-            RLPLog.info("Activating Reason before closing (activateReasonBeforeClose is on)")
-            _ = reason.activate()
-            try? await Task.sleep(nanoseconds: 300_000_000)
+        // File > Close does nothing unless Reason is frontmost (confirmed by testing: it worked
+        // only when Reason already had focus), so bring it forward if another app is in front.
+        if !reason.isActive {
+            let ok = await Self.bringToFront(reason)
+            RLPLog.info(ok ? "Reason brought to the front" : "Reason did not come to the front; trying anyway")
+            try? await Task.sleep(nanoseconds: 250_000_000)   // let its menu bar update
         }
 
         switch Self.pressFileClose(pid: reason.processIdentifier) {
@@ -63,6 +60,41 @@ public final class ReasonBridge: ReasonControlling {
             RLPLog.error("File > Close not found through Accessibility; using AppleScript fallback")
             Self.closeWithAppleScript()
         }
+    }
+
+    // MARK: - Bringing Reason forward
+
+    /// Brings `app` to the front and waits until it is active. From macOS 14, an app that is
+    /// not frontmost cannot make another app active with a plain activation request, so the
+    /// methods are tried in order of reliability:
+    /// 1. Set the Accessibility "frontmost" attribute (needs the Accessibility permission this
+    ///    app already has).
+    /// 2. A plain activation request.
+    /// 3. Ask LaunchServices to open the running app, which activates it.
+    private static func bringToFront(_ app: NSRunningApplication) async -> Bool {
+        let element = AXUIElementCreateApplication(app.processIdentifier)
+        let result = AXUIElementSetAttributeValue(element, kAXFrontmostAttribute as CFString, kCFBooleanTrue)
+        if result != .success { RLPLog.error("Setting AXFrontmost failed (error \(result.rawValue))") }
+        if await waitUntilActive(app, timeout: 1.0) { return true }
+
+        _ = app.activate()
+        if await waitUntilActive(app, timeout: 0.7) { return true }
+
+        if let url = app.bundleURL {
+            _ = try? await NSWorkspace.shared.openApplication(
+                at: url, configuration: NSWorkspace.OpenConfiguration())
+            return await waitUntilActive(app, timeout: 1.0)
+        }
+        return false
+    }
+
+    private static func waitUntilActive(_ app: NSRunningApplication, timeout: TimeInterval) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if app.isActive { return true }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        return app.isActive
     }
 
     // MARK: - Finding Reason

@@ -93,7 +93,9 @@ scripts/make-icon.py             regenerates Resources/icon.png (needs Pillow)
    different one is still open closes the open one first, waits the transition delay, then
    opens the new one, so Reason does not end up with two documents.
 5. **Closing the Reason window** uses the Accessibility API directly (File > Close in
-   Reason's menu bar). If that menu item is not found, it runs the same AppleScript as before.
+   Reason's menu bar). Reason is brought to the front first if another app has focus, because
+   File > Close does nothing otherwise. If that menu item is not found, it runs the same
+   AppleScript as before.
    The scripted path needs a separate "control System Events" permission; the direct path does
    not.
 6. **Accessibility status updates live.** The app checks every 2 seconds until permission is
@@ -163,15 +165,13 @@ errors or warnings. Then check these on a Mac in roughly this order:
 5. **MIDI trigger.** Set channel and note to match a Reason External MIDI Instrument. Confirm
    the dot is green and a note-on advances the playlist. This is the first run of the UMP
    event-list code (`MidiNoteListener.packetWords`); if the trigger never fires, start there.
-6. **Closing songs.** With Reason open, advance between two songs. The first should close
-   through File > Close with no AppleScript prompt. Reason is **not** brought to the front first
-   (that step was removed because macOS 14 ignores it). Check that the close still works while
-   another app is in front. If it fails, turn the old behavior back on and compare:
-   `defaults write com.reasonablelive.player activateReasonBeforeClose -bool YES`
-   (and `-bool NO` or `defaults delete com.reasonablelive.player activateReasonBeforeClose` to
-   turn it off). The log says which path ran. If the menu item is not found by title, the
-   AppleScript fallback runs and macOS may ask for System Events access. Tell me if that
-   happens: Reason's menu title may differ from "File" or "Close".
+6. **Closing songs.** With Reason open, advance between two songs while each of these is in front:
+   Reason, RLP itself, and a third app (Finder or a browser). The song should close each time.
+   Testing showed File > Close only worked when Reason already had focus, so RLP now brings Reason
+   to the front first when it is not. The log (see Logging) says "Reason brought to the front" or
+   "Reason did not come to the front; trying anyway". Reason stays in front afterwards. If the menu
+   item is not found by title, the AppleScript fallback runs and macOS may ask for System Events
+   access. Tell me if that happens: Reason's menu title may differ from "File" or "Close".
 7. **Drag and drop:** drag `.reason` files from Finder into the list (also try an empty
    list). Drag rows to reorder. These rely on SwiftUI `List` `onMove` and `onInsert`, which
    can behave differently across macOS versions.
