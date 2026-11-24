@@ -173,6 +173,9 @@ final class AppModel: ObservableObject {
     func attach(window newWindow: NSWindow) {
         if window !== newWindow {
             window = newWindow
+            // Hide the title text. It shares the title bar row with the toolbar and forces the
+            // window wider. The title still exists for the Window menu and Mission Control.
+            newWindow.titleVisibility = .hidden
             newWindow.setFrameUsingName(Self.windowFrameName)
             newWindow.setFrameAutosaveName(Self.windowFrameName)
             keepOnScreen(newWindow)
@@ -186,7 +189,7 @@ final class AppModel: ObservableObject {
         window?.level = settings.alwaysOnTop ? .floating : .normal
     }
 
-    /// Proxy icon and unsaved-changes dot, like a document window.
+    /// Proxy icon (when the title is shown) and the unsaved-changes dot in the close button.
     private func updateWindowChrome() {
         window?.representedURL = currentPlaylistURL
         window?.isDocumentEdited = player.isDirty

@@ -111,8 +111,9 @@ scripts/make-icon.py             regenerates Resources/icon.png (needs Pillow)
 13. **Standard Settings window** (⌘,) replaces the settings dialog. Changes apply immediately.
     The values are set with steppers and pickers, so there is no validation dialog.
 14. **Undo and Redo** for adding, removing, reordering and opening playlists (up to 50 steps).
-15. **Open Recent**, **Save** and **Save As**. The window title shows the playlist name, with a
-    proxy icon and an unsaved-changes dot.
+15. **Open Recent**, **Save** and **Save As**. The unsaved-changes dot shows in the close button.
+    The window title (the playlist name) is hidden so it does not take up toolbar width, but it
+    still appears in the Window menu and Mission Control.
 16. **Playback menu** with Play/Pause (⌘↩) and Skip (⌘→). Modifier shortcuts are used on purpose
     so a stray key press cannot start or skip a song during a show.
 17. **System look.** A native toolbar and system colors replace the fixed dark theme. Appearance
