@@ -250,6 +250,22 @@ private struct StatusDot: View {
 
 // MARK: - Playlist
 
+extension View {
+    /// Calls `action` when Return or keypad Enter is pressed while this view has keyboard focus.
+    /// `action` returns true if it handled the key. `onKeyPress` needs macOS 14, so on macOS 13
+    /// the Return key does nothing (the arrow keys and double-click still work).
+    @ViewBuilder
+    fileprivate func playsOnReturn(_ action: @escaping () -> Bool) -> some View {
+        if #available(macOS 14, *) {
+            self.onKeyPress(keys: [.return, KeyEquivalent("\u{3}")], phases: .down) { _ in
+                action() ? .handled : .ignored
+            }
+        } else {
+            self
+        }
+    }
+}
+
 @MainActor
 private struct PlaylistView: View {
     @EnvironmentObject private var model: AppModel
@@ -305,10 +321,10 @@ private struct PlaylistView: View {
             .listStyle(.inset)
             .focused($listHasFocus)
             .onAppear { listHasFocus = true }
-            .onKeyPress(keys: [.return, KeyEquivalent("\u{3}")], phases: .down) { _ in
-                guard let id = player.selectedSongID else { return .ignored }
+            .playsOnReturn {
+                guard let id = player.selectedSongID else { return false }
                 model.playSong(id: id)
-                return .handled
+                return true
             }
             .onChange(of: player.scrollRequest) { request in
                 guard let request else { return }
