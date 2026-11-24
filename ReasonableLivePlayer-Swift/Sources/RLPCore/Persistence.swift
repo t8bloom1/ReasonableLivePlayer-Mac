@@ -19,25 +19,33 @@ public enum PlaylistFileService {
     }
 }
 
-/// Persists `SettingsData` as JSON.
+/// Persists `SettingsData` in UserDefaults (`~/Library/Preferences/<bundle id>.plist`).
 ///
-/// New location: `~/Library/Application Support/ReasonableLivePlayer/settings.json`.
-/// The .NET build stored settings in `~/.config/ReasonableLivePlayer/settings.json`
-/// (.NET maps ApplicationData to the XDG config dir on macOS). If the new file does
-/// not exist yet, the old one is read, and the next save writes to the new location.
+/// The first time it runs with no saved settings, it imports the .NET version's
+/// `~/.config/ReasonableLivePlayer/settings.json` (.NET maps ApplicationData to the XDG config
+/// dir on macOS). That happens once; after that UserDefaults is the only source.
 public struct SettingsStore {
-    public let url: URL
+    public let defaults: UserDefaults
     public let legacyURL: URL?
 
-    public init(url: URL = SettingsStore.defaultURL, legacyURL: URL? = SettingsStore.defaultLegacyURL) {
-        self.url = url
-        self.legacyURL = legacyURL
+    private static let importDoneKey = "legacySettingsImportDone"
+
+    private enum Key {
+        static let midiDeviceName = "midiDeviceName"
+        static let midiChannel = "midiChannel"
+        static let endNoteNumber = "endNoteNumber"
+        static let transitionDelaySec = "transitionDelaySec"
+        static let lastPlaylistPath = "lastPlaylistPath"
+        static let loadLastPlaylist = "loadLastPlaylist"
+        static let alwaysOnTop = "alwaysOnTop"
+        static let songSpacing = "songSpacing"
+        static let songFontSize = "songFontSize"
+        static let appearance = "appearance"
     }
 
-    public static var defaultURL: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Library/Application Support")
-        return base.appendingPathComponent("ReasonableLivePlayer/settings.json")
+    public init(defaults: UserDefaults = .standard, legacyURL: URL? = SettingsStore.defaultLegacyURL) {
+        self.defaults = defaults
+        self.legacyURL = legacyURL
     }
 
     public static var defaultLegacyURL: URL {
@@ -51,20 +59,51 @@ public struct SettingsStore {
     }
 
     public func load() -> SettingsData {
-        for candidate in [url, legacyURL].compactMap({ $0 }) {
-            guard let data = try? Data(contentsOf: candidate),
-                  var settings = try? JSONDecoder().decode(SettingsData.self, from: data) else { continue }
-            if settings.transitionDelaySec < 0 {
-                settings.transitionDelaySec = SettingsData.defaultTransitionDelaySec
-            }
-            return settings
+        importLegacyIfNeeded()
+
+        var s = SettingsData()
+        s.midiDeviceName = defaults.string(forKey: Key.midiDeviceName)
+        if has(Key.midiChannel) { s.midiChannel = defaults.integer(forKey: Key.midiChannel) }
+        if has(Key.endNoteNumber) { s.endNoteNumber = defaults.integer(forKey: Key.endNoteNumber) }
+        if has(Key.transitionDelaySec) { s.transitionDelaySec = defaults.integer(forKey: Key.transitionDelaySec) }
+        s.lastPlaylistPath = defaults.string(forKey: Key.lastPlaylistPath)
+        s.loadLastPlaylist = defaults.bool(forKey: Key.loadLastPlaylist)
+        s.alwaysOnTop = defaults.bool(forKey: Key.alwaysOnTop)
+        if has(Key.songSpacing) { s.songSpacing = defaults.integer(forKey: Key.songSpacing) }
+        if has(Key.songFontSize) { s.songFontSize = defaults.double(forKey: Key.songFontSize) }
+        if let raw = defaults.string(forKey: Key.appearance), let mode = AppearanceMode(rawValue: raw) {
+            s.appearance = mode
         }
-        return SettingsData()
+        if s.transitionDelaySec < 0 { s.transitionDelaySec = SettingsData.defaultTransitionDelaySec }
+        return s
     }
 
-    public func save(_ settings: SettingsData) throws {
-        try FileManager.default.createDirectory(
-            at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try makeEncoder().encode(settings).write(to: url, options: .atomic)
+    public func save(_ s: SettingsData) {
+        setOrRemove(s.midiDeviceName, Key.midiDeviceName)
+        defaults.set(s.midiChannel, forKey: Key.midiChannel)
+        defaults.set(s.endNoteNumber, forKey: Key.endNoteNumber)
+        defaults.set(s.transitionDelaySec, forKey: Key.transitionDelaySec)
+        setOrRemove(s.lastPlaylistPath, Key.lastPlaylistPath)
+        defaults.set(s.loadLastPlaylist, forKey: Key.loadLastPlaylist)
+        defaults.set(s.alwaysOnTop, forKey: Key.alwaysOnTop)
+        defaults.set(s.songSpacing, forKey: Key.songSpacing)
+        defaults.set(s.songFontSize, forKey: Key.songFontSize)
+        defaults.set(s.appearance.rawValue, forKey: Key.appearance)
+    }
+
+    private func has(_ key: String) -> Bool { defaults.object(forKey: key) != nil }
+
+    private func setOrRemove(_ value: String?, _ key: String) {
+        if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
+    }
+
+    private func importLegacyIfNeeded() {
+        guard !defaults.bool(forKey: Self.importDoneKey) else { return }
+        defaults.set(true, forKey: Self.importDoneKey)
+        guard !has(Key.midiChannel),                       // nothing saved yet
+              let url = legacyURL,
+              let data = try? Data(contentsOf: url),
+              let legacy = try? JSONDecoder().decode(SettingsData.self, from: data) else { return }
+        save(legacy)
     }
 }

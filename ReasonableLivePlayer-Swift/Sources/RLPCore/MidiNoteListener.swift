@@ -86,6 +86,7 @@ public final class MidiNoteListener {
         deviceName = name
 
         guard client != 0, let found = Self.findSource(named: name) else {
+            RLPLog.info("MIDI source \"\(name)\" not found")
             setConnected(false)
             return false
         }
@@ -116,6 +117,7 @@ public final class MidiNoteListener {
 
         port = newPort
         source = found.endpoint
+        RLPLog.info("MIDI connected to \"\(found.displayName)\", channel \(channel + 1), note \(noteNumber)")
         setConnected(true)
         return true
     }

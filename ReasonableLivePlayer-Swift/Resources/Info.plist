@@ -20,6 +20,8 @@
     <string>APPL</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
+    <key>NSHumanReadableCopyright</key>
+    <string>Copyright © 2026 t8bloom1. Released under the MIT License.</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
     <key>NSHighResolutionCapable</key>

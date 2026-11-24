@@ -37,15 +37,21 @@ public final class ReasonBridge: ReasonControlling {
     }
 
     public func closeSong(path: String) async {
-        guard let reason = Self.findReason() else { return }
+        guard let reason = Self.findReason() else {
+            RLPLog.error("Close skipped: Reason is not running")
+            return
+        }
 
         reason.activate(options: [.activateIgnoringOtherApps])
         try? await Task.sleep(nanoseconds: 300_000_000)
 
         switch Self.pressFileClose(pid: reason.processIdentifier) {
-        case .pressed, .pressFailed:
-            return
+        case .pressed:
+            RLPLog.info("Closed document with File > Close (Accessibility)")
+        case .pressFailed:
+            RLPLog.error("File > Close was found but pressing it failed (no document open?)")
         case .notFound:
+            RLPLog.error("File > Close not found through Accessibility; using AppleScript fallback")
             Self.closeWithAppleScript()
         }
     }

@@ -30,7 +30,7 @@ final class PlayerControllerTests: XCTestCase {
     private func make(sleeper: @escaping (Int) async -> Void = { _ in }) -> (PlayerController, FakeReason) {
         let reason = FakeReason()
         let controller = PlayerController(reason: reason, sleeper: sleeper)
-        controller.insertSongs(paths: names.map { "/m/" + $0 })
+        controller.replaceSongs(paths: names.map { "/m/" + $0 }, undoable: false)
         return (controller, reason)
     }
 
@@ -227,5 +227,108 @@ final class PlayerControllerTests: XCTestCase {
         XCTAssertFalse(c.isPlaying)
         XCTAssertFalse(c.isDirty)
         XCTAssertEqual(c.statusText, "Loaded 1 songs")
+    }
+
+    // MARK: Undo
+
+    func testUndoAndRedoRemove() {
+        let (c, _) = make()
+        let before = c.songs
+        c.removeSong(id: c.songs[1].id)
+        XCTAssertEqual(c.undoActionName, "Remove Song")
+        c.undo()
+        XCTAssertEqual(c.songs, before)
+        XCTAssertNil(c.undoActionName)
+        XCTAssertEqual(c.redoActionName, "Remove Song")
+        c.redo()
+        XCTAssertEqual(c.songs.map { $0.displayName }, ["a", "c"])
+        XCTAssertNil(c.redoActionName)
+    }
+
+    func testUndoAddAndMove() {
+        let (c, _) = make()
+        c.insertSongs(paths: ["/m/x.reason"])
+        XCTAssertEqual(c.undoActionName, "Add Song")
+        c.moveSongs(fromOffsets: [0], toOffset: 4)
+        XCTAssertEqual(c.undoActionName, "Move Song")
+        XCTAssertEqual(c.songs.map { $0.displayName }, ["b", "c", "x", "a"])
+        c.undo()
+        XCTAssertEqual(c.songs.map { $0.displayName }, ["a", "b", "c", "x"])
+        c.undo()
+        XCTAssertEqual(c.songs.map { $0.displayName }, ["a", "b", "c"])
+    }
+
+    func testNewEditClearsRedo() {
+        let (c, _) = make()
+        c.removeSong(id: c.songs[0].id)
+        c.undo()
+        XCTAssertTrue(c.canRedo)
+        c.removeSong(id: c.songs[2].id)
+        XCTAssertFalse(c.canRedo)
+    }
+
+    func testMoveToSamePlaceIsNotAnUndoStep() {
+        let (c, _) = make()
+        c.moveSongs(fromOffsets: [1], toOffset: 1)
+        XCTAssertNil(c.undoActionName)
+    }
+
+    func testOpenPlaylistIsUndoableButStartupLoadIsNot() {
+        let (c, _) = make()
+        c.replaceSongs(paths: ["/m/z.reason"])
+        XCTAssertEqual(c.undoActionName, "Open Playlist")
+        c.undo()
+        XCTAssertEqual(c.songs.count, 3)
+        c.replaceSongs(paths: ["/m/y.reason"], undoable: false)
+        XCTAssertFalse(c.canUndo)
+        XCTAssertFalse(c.canRedo)
+    }
+
+    func testUndoKeepsPlaybackPositionOnTheSameSong() async {
+        let (c, _) = make()
+        c.play(); await c.waitForTransition()
+        c.handleTrigger(); await c.waitForTransition()      // now on b (index 1)
+        c.removeSong(id: c.songs[0].id)                       // b is now index 0
+        XCTAssertEqual(c.activeIndex, 0)
+        c.undo()                                              // a comes back before b
+        XCTAssertEqual(c.activeIndex, 1)
+        XCTAssertEqual(c.songs[1].displayName, "b")
+    }
+
+    func testUndoDepthIsLimited() {
+        let c = PlayerController(reason: FakeReason(), sleeper: { _ in })
+        for i in 0..<60 { c.insertSongs(paths: ["/m/\(i).reason"]) }
+        var steps = 0
+        while c.canUndo { c.undo(); steps += 1 }
+        XCTAssertEqual(steps, 50)
+    }
+
+    // MARK: Keep awake
+
+    func testStaysAwakeWhilePlayingAndTransitioning() async {
+        let gate = Gate()
+        let (c, _) = make(sleeper: { _ in await gate.wait() })
+        XCTAssertFalse(c.needsToStayAwake)
+        c.play(); await c.waitForTransition()
+        XCTAssertTrue(c.needsToStayAwake)                    // playing
+
+        c.pause()
+        XCTAssertFalse(c.needsToStayAwake)                   // paused and idle
+
+        c.play(); await c.waitForTransition()
+        c.skip()                                             // isPlaying false during the delay
+        await waitUntil { gate.waiterCount == 1 }
+        XCTAssertTrue(c.needsToStayAwake)                    // transition in flight
+        gate.releaseAll()
+        await c.waitForTransition()
+        XCTAssertTrue(c.needsToStayAwake)                    // playing again
+    }
+
+    func testDoesNotStayAwakeAfterSetCompletes() async {
+        let (c, _) = make()
+        c.play(); await c.waitForTransition()
+        for _ in 0..<3 { c.handleTrigger(); await c.waitForTransition() }
+        XCTAssertEqual(c.statusText, "Set complete")
+        XCTAssertFalse(c.needsToStayAwake)
     }
 }

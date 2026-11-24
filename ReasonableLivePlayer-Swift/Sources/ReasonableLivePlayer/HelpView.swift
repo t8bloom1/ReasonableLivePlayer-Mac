@@ -4,14 +4,6 @@ import SwiftUI
 struct HelpView: View {
     @Environment(\.dismiss) private var dismiss
 
-    private var version: String {
-        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "development build"
-    }
-
-    private var buildDate: String {
-        Bundle.main.object(forInfoDictionaryKey: "RLPBuildDate") as? String ?? "unknown"
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ScrollView {
@@ -22,8 +14,8 @@ struct HelpView: View {
                             "RLP automates live set playback in Reason. It opens songs in sequence and advances to the next when a MIDI trigger note is received.")
 
                     section("RLP Setup", """
-                    1. Click + or drag .reason / .rns files into the playlist.
-                    2. Open Settings and select your MIDI input device, channel, and trigger note number.
+                    1. Click + (or choose File > Add Songs) or drag .reason / .rns files into the playlist.
+                    2. Open Settings (⌘,) and select your MIDI input device, channel, and trigger note number.
                     3. The status dot turns green when MIDI is connected and Accessibility is granted.
                     4. Press Play. RLP opens the first song in Reason.
                     5. When the trigger note is received, RLP closes the current song and opens the next.
@@ -53,28 +45,21 @@ struct HelpView: View {
                     The status dot and the Settings window show the current state, and update once permission is granted.
                     """)
 
-                    section("Toolbar", """
-                    Play / Pause
-                    Skip to next song
-                    Add songs
-                    Save playlist
-                    Open playlist
-                    Settings
-                    Help
-                    Pin: stay on top of other windows
+                    section("Keyboard shortcuts", """
+                    ⌘↩  Play / Pause
+                    ⌘→  Skip to next song
+                    ⌘O  Open playlist
+                    ⇧⌘O  Add songs
+                    ⌘S  Save playlist
+                    ⇧⌘S  Save playlist as
+                    ⌘Z / ⇧⌘Z  Undo / Redo playlist edits
+                    ⌘,  Settings
                     """)
 
                     section("Playing and pausing", """
                     While playing, double-click a song to close the current one and jump to it. While paused, double-click (or click the arrow) to choose which song plays next. Drag rows to reorder them.
                     """)
 
-                    Text("About").font(.headline).padding(.top, 4)
-                    Text("Version: \(version)")
-                    Text("Build date: \(buildDate)")
-                    Link("https://github.com/t8bloom1/ReasonableLivePlayer-Mac",
-                         destination: URL(string: "https://github.com/t8bloom1/ReasonableLivePlayer-Mac")!)
-                    Link("Licensed under the MIT License",
-                         destination: URL(string: "https://github.com/t8bloom1/ReasonableLivePlayer-Mac/blob/main/LICENSE")!)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }

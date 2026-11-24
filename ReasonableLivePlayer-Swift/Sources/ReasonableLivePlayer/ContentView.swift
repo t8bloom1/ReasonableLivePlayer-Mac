@@ -2,33 +2,31 @@ import SwiftUI
 import UniformTypeIdentifiers
 import RLPCore
 
-private let windowBackground = Color(red: 0x1E / 255, green: 0x1E / 255, blue: 0x1E / 255)
-private let listBackground = Color(red: 0x25 / 255, green: 0x25 / 255, blue: 0x25 / 255)
-
 @MainActor
 struct ContentView: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var player: PlayerController
 
     var body: some View {
-        VStack(spacing: 8) {
-            ToolbarRow()
+        VStack(spacing: 6) {
             PlaylistView()
             Text(player.statusText)
-                .font(.system(size: 11))
-                .foregroundColor(.gray)
+                .font(.caption)
+                .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .padding(.bottom, 2)
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, 4)
         }
-        .padding(8)
-        .frame(minWidth: 340, minHeight: 240)
-        .background(windowBackground)
-        .preferredColorScheme(.dark)
+        .padding([.horizontal, .top], 8)
+        .frame(minWidth: 380, minHeight: 240)
+        .navigationTitle(model.windowTitle)
+        .toolbar {
+            ToolbarItem(placement: .navigation) { TransportButtons() }
+            ToolbarItem(placement: .primaryAction) { FileButtons() }
+            ToolbarItem(placement: .primaryAction) { StatusButtons() }
+        }
         .background(WindowAccessor { window in model.attach(window: window) })
-        .sheet(isPresented: $model.showSettings) {
-            SettingsView().environmentObject(model)
-        }
         .sheet(isPresented: $model.showHelp) {
             HelpView()
         }
@@ -38,77 +36,108 @@ struct ContentView: View {
 // MARK: - Toolbar
 
 @MainActor
-private struct ToolbarRow: View {
+private struct TransportButtons: View {
     @EnvironmentObject private var model: AppModel
     @EnvironmentObject private var player: PlayerController
 
     var body: some View {
-        HStack(spacing: 6) {
-            IconButton(systemName: player.isPlaying ? "pause.fill" : "play.fill",
-                       help: player.isPlaying ? "Pause" : "Play",
-                       width: 44) {
+        HStack(spacing: 4) {
+            Button {
                 if player.isPlaying { player.pause() } else { player.play() }
+            } label: {
+                Label(player.isPlaying ? "Pause" : "Play",
+                      systemImage: player.isPlaying ? "pause.fill" : "play.fill")
+                    .labelStyle(.iconOnly)
             }
+            .help(player.isPlaying ? "Pause (⌘↩)" : "Play (⌘↩)")
             .disabled(player.songs.isEmpty || !model.accessibilityGranted)
 
-            IconButton(systemName: "forward.end.fill", help: "Skip to next song", width: 44) {
-                player.skip()
+            Button { player.skip() } label: {
+                Label("Skip to Next Song", systemImage: "forward.end.fill").labelStyle(.iconOnly)
             }
+            .help("Skip to next song (⌘→)")
             .disabled(player.songs.isEmpty)
-
-            IconButton(systemName: "plus", help: "Add songs", width: 44) {
-                model.addSongsViaPanel()
-            }
-
-            IconButton(systemName: "square.and.arrow.down", help: "Save playlist") {
-                model.savePlaylistViaPanel()
-            }
-            .disabled(player.songs.isEmpty)
-
-            IconButton(systemName: "folder", help: "Open playlist") {
-                model.loadPlaylistViaPanel()
-            }
-
-            IconButton(systemName: "gearshape", help: "Settings") {
-                model.showSettings = true
-            }
-
-            IconButton(systemName: "questionmark", help: "Help") {
-                model.showHelp = true
-            }
-
-            Circle()
-                .fill(model.statusIndicatorColor)
-                .frame(width: 14, height: 14)
-                .padding(.leading, 4)
-                .help(model.statusIndicatorTooltip)
-
-            Toggle(isOn: Binding(
-                get: { model.settings.alwaysOnTop },
-                set: { model.setAlwaysOnTop($0) }
-            )) {
-                Image(systemName: "pin.fill")
-            }
-            .toggleStyle(.button)
-            .help("Stay on top of other windows")
         }
     }
 }
 
 @MainActor
-private struct IconButton: View {
-    let systemName: String
-    let help: String
-    var width: CGFloat = 32
-    let action: () -> Void
+private struct FileButtons: View {
+    @EnvironmentObject private var model: AppModel
+    @EnvironmentObject private var player: PlayerController
 
     var body: some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .frame(width: width - 16, height: 20)
+        HStack(spacing: 4) {
+            Button { model.addSongsViaPanel() } label: {
+                Label("Add Songs", systemImage: "plus").labelStyle(.iconOnly)
+            }
+            .help("Add songs (⇧⌘O)")
+
+            Button { model.loadPlaylistViaPanel() } label: {
+                Label("Open Playlist", systemImage: "folder").labelStyle(.iconOnly)
+            }
+            .help("Open playlist (⌘O)")
+
+            Button { model.savePlaylist() } label: {
+                Label("Save Playlist", systemImage: "square.and.arrow.down").labelStyle(.iconOnly)
+            }
+            .help("Save playlist (⌘S)")
+            .disabled(player.songs.isEmpty)
         }
-        .help(help)
-        .focusable(false)
+    }
+}
+
+@MainActor
+private struct StatusButtons: View {
+    @EnvironmentObject private var model: AppModel
+
+    var body: some View {
+        HStack(spacing: 6) {
+            SettingsButton()
+
+            Button { model.showHelp = true } label: {
+                Label("Help", systemImage: "questionmark.circle").labelStyle(.iconOnly)
+            }
+            .help("Help")
+
+            Toggle(isOn: Binding(
+                get: { model.settings.alwaysOnTop },
+                set: { value in model.update { $0.alwaysOnTop = value } }
+            )) {
+                Label("Stay on Top", systemImage: "pin.fill").labelStyle(.iconOnly)
+            }
+            .toggleStyle(.button)
+            .help("Stay on top of other windows")
+
+            Circle()
+                .fill(model.statusIndicatorColor)
+                .frame(width: 12, height: 12)
+                .help(model.statusIndicatorTooltip)
+                .accessibilityElement()
+                .accessibilityLabel("Status")
+                .accessibilityValue(model.statusIndicatorTooltip)
+        }
+    }
+}
+
+/// Opens the Settings window. macOS 14 added `SettingsLink`; on macOS 13 the window is opened
+/// by sending the standard action.
+@MainActor
+private struct SettingsButton: View {
+    var body: some View {
+        if #available(macOS 14, *) {
+            SettingsLink {
+                Label("Settings", systemImage: "gearshape").labelStyle(.iconOnly)
+            }
+            .help("Settings (⌘,)")
+        } else {
+            Button {
+                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+            } label: {
+                Label("Settings", systemImage: "gearshape").labelStyle(.iconOnly)
+            }
+            .help("Settings (⌘,)")
+        }
     }
 }
 
@@ -129,12 +158,12 @@ private struct PlaylistView: View {
 
     private var emptyState: some View {
         ZStack {
-            listBackground
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(.quaternary, style: StrokeStyle(lineWidth: 1.5, dash: [6]))
             Text("Drop .reason or .rns files here,\nor click + to add songs.")
                 .multilineTextAlignment(.center)
-                .foregroundColor(.gray)
+                .foregroundStyle(.secondary)
         }
-        .cornerRadius(6)
         .onDrop(of: [UTType.fileURL], isTargeted: nil) { providers in
             insertDropped(providers, at: nil)
             return true
@@ -154,7 +183,6 @@ private struct PlaylistView: View {
                         spacing: model.settings.songSpacing
                     )
                     .listRowInsets(EdgeInsets(top: 1, leading: 6, bottom: 1, trailing: 6))
-                    .listRowSeparator(.hidden)
                 }
                 .onMove { offsets, destination in
                     player.moveSongs(fromOffsets: offsets, toOffset: destination)
@@ -163,10 +191,7 @@ private struct PlaylistView: View {
                     insertDropped(providers, at: index)
                 }
             }
-            .listStyle(.plain)
-            .scrollContentBackground(.hidden)
-            .background(listBackground)
-            .cornerRadius(6)
+            .listStyle(.inset)
             .onChange(of: player.scrollRequest) { request in
                 guard let request else { return }
                 withAnimation { proxy.scrollTo(request.songID) }
@@ -233,7 +258,7 @@ private struct SongRow: View {
 
     private var indicatorColor: Color {
         guard isActive else { return .clear }
-        return isPlaying ? Color(red: 0, green: 0.8, blue: 0.4) : Color(white: 0.6)
+        return isPlaying ? Color(red: 0, green: 0.8, blue: 0.4) : .secondary
     }
 
     var body: some View {
@@ -241,36 +266,39 @@ private struct SongRow: View {
             Button { player.selectSong(id: song.id) } label: {
                 Image(systemName: "play.fill")
                     .font(.system(size: 11))
-                    .foregroundColor(indicatorColor)
+                    .foregroundStyle(indicatorColor)
                     .frame(width: 18, height: 18)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help("Select this song")
+            .accessibilityLabel("Select \(song.displayName)")
 
             Image(systemName: "line.3.horizontal")
                 .font(.system(size: 11))
-                .foregroundColor(Color(white: 0.4))
+                .foregroundStyle(.tertiary)
                 .frame(width: 18)
+                .accessibilityHidden(true)
 
             Text(song.displayName)
                 .font(.system(size: fontSize))
-                .foregroundColor(.white)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
                 .onTapGesture(count: 2) { player.selectSong(id: song.id) }
+                .accessibilityAddTraits(isActive ? .isSelected : [])
 
             Button { player.removeSong(id: song.id) } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 9))
-                    .foregroundColor(Color(white: 0.55))
+                    .foregroundStyle(.secondary)
                     .frame(width: 18, height: 18)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             .help("Remove from playlist")
+            .accessibilityLabel("Remove \(song.displayName)")
         }
         .padding(.top, CGFloat(spacing))
     }

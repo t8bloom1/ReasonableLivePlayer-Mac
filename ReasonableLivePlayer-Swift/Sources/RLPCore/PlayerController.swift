@@ -31,11 +31,20 @@ public final class PlayerController: ObservableObject {
     /// Index of the active song, or nil when nothing is active.
     @Published public private(set) var activeIndex: Int? = nil
     /// True while the playlist is running (shown as the pause button).
-    @Published public private(set) var isPlaying = false
+    @Published public private(set) var isPlaying = false {
+        didSet { refreshAwake() }
+    }
     @Published public private(set) var statusText = "Ready"
     /// True when the playlist has changed since it was last saved or loaded.
     @Published public private(set) var isDirty = false
     @Published public private(set) var scrollRequest: ScrollRequest? = nil
+    /// True while playing or while a transition is running. The app holds a keep-awake
+    /// assertion for as long as this is true.
+    @Published public private(set) var needsToStayAwake = false
+    /// Name of the edit Undo would revert (for example "Remove Song"), or nil.
+    @Published public private(set) var undoActionName: String? = nil
+    /// Name of the edit Redo would reapply, or nil.
+    @Published public private(set) var redoActionName: String? = nil
 
     /// Seconds between closing one song and opening the next. Set from settings.
     public var transitionDelaySec = SettingsData.defaultTransitionDelaySec
@@ -47,11 +56,21 @@ public final class PlayerController: ObservableObject {
 
     /// The song this controller opened and has not yet closed.
     private var openSong: Song?
-    private var transitionTask: Task<Void, Never>?
+    private var transitionTask: Task<Void, Never>? {
+        didSet { refreshAwake() }
+    }
     private var transitionToken = 0
     /// When a transition ends, switch to the playing state. Set by play, skip and jump.
     private var resumeAfterTransition = false
     private var scrollSerial = 0
+
+    private struct UndoEntry {
+        let name: String
+        let songs: [Song]
+    }
+    private var undoStack: [UndoEntry] = []
+    private var redoStack: [UndoEntry] = []
+    private static let maxUndoDepth = 50
 
     public init(reason: ReasonControlling, sleeper: @escaping (Int) async -> Void = PlayerController.defaultSleep) {
         self.reason = reason
@@ -71,6 +90,9 @@ public final class PlayerController: ObservableObject {
         return songs[index].id
     }
 
+    public var canUndo: Bool { undoActionName != nil }
+    public var canRedo: Bool { redoActionName != nil }
+
     private var isTransitioning: Bool { transitionTask != nil }
     /// Playing, or about to resume playing after a transition.
     private var inPlayMode: Bool { isPlaying || resumeAfterTransition }
@@ -87,6 +109,7 @@ public final class PlayerController: ObservableObject {
     /// Inserts songs at `index` (default: end).
     public func insertSongs(paths: [String], at index: Int? = nil) {
         guard !paths.isEmpty else { return }
+        recordUndo(paths.count == 1 ? "Add Song" : "Add Songs")
         let new = paths.map { Song(path: $0) }
         let at = max(0, min(index ?? songs.count, songs.count))
         songs.insert(contentsOf: new, at: at)
@@ -96,6 +119,7 @@ public final class PlayerController: ObservableObject {
 
     public func removeSong(id: Song.ID) {
         guard let index = songs.firstIndex(where: { $0.id == id }) else { return }
+        recordUndo("Remove Song")
         songs.remove(at: index)
         if let active = activeIndex {
             if index < active {
@@ -115,13 +139,18 @@ public final class PlayerController: ObservableObject {
     /// Reorders songs. The active song stays active wherever it ends up.
     public func moveSongs(fromOffsets offsets: IndexSet, toOffset destination: Int) {
         let activeID = activeSongID
-        songs = songs.movingItems(fromOffsets: offsets, toOffset: destination)
+        let reordered = songs.movingItems(fromOffsets: offsets, toOffset: destination)
+        guard reordered != songs else { return }
+        recordUndo("Move Song")
+        songs = reordered
         if let activeID { activeIndex = songs.firstIndex { $0.id == activeID } }
         isDirty = true
     }
 
     /// Replaces the playlist, for opening a saved playlist. Resets playback state.
-    public func replaceSongs(paths: [String]) {
+    /// Pass `undoable: false` for the automatic load at startup.
+    public func replaceSongs(paths: [String], undoable: Bool = true) {
+        if undoable { recordUndo("Open Playlist") } else { clearUndo() }
         cancelTransition()
         songs = paths.map { Song(path: $0) }
         activeIndex = nil
@@ -131,6 +160,55 @@ public final class PlayerController: ObservableObject {
     }
 
     public func markClean() { isDirty = false }
+
+    // MARK: Undo
+
+    public func undo() {
+        guard let entry = undoStack.popLast() else { return }
+        redoStack.append(UndoEntry(name: entry.name, songs: songs))
+        restore(entry.songs)
+        publishUndoState()
+    }
+
+    public func redo() {
+        guard let entry = redoStack.popLast() else { return }
+        undoStack.append(UndoEntry(name: entry.name, songs: songs))
+        restore(entry.songs)
+        publishUndoState()
+    }
+
+    private func recordUndo(_ name: String) {
+        undoStack.append(UndoEntry(name: name, songs: songs))
+        if undoStack.count > Self.maxUndoDepth { undoStack.removeFirst() }
+        redoStack.removeAll()
+        publishUndoState()
+    }
+
+    private func clearUndo() {
+        undoStack.removeAll()
+        redoStack.removeAll()
+        publishUndoState()
+    }
+
+    private func publishUndoState() {
+        undoActionName = undoStack.last?.name
+        redoActionName = redoStack.last?.name
+    }
+
+    /// Puts a saved song list back. The pointer follows the active song if it still exists, so
+    /// undoing an edit during a set does not move the playback position.
+    private func restore(_ restored: [Song]) {
+        let activeID = activeSongID
+        songs = restored
+        if let activeID, let index = songs.firstIndex(where: { $0.id == activeID }) {
+            activeIndex = index
+        } else if let index = activeIndex, songs.indices.contains(index) {
+            // keep the pointer position
+        } else {
+            activeIndex = nil
+        }
+        isDirty = true
+    }
 
     // MARK: Transport
 
@@ -221,7 +299,11 @@ public final class PlayerController: ObservableObject {
     public func handleTrigger() {
         // The trigger comes from the song that is open. While a transition runs, the old
         // song is already closed, so a second trigger is stale. Ignore it.
-        if isTransitioning { return }
+        if isTransitioning {
+            RLPLog.info("Trigger ignored: a transition is already running")
+            return
+        }
+        RLPLog.info("Trigger received (\(isPlaying ? "playing" : "paused"))")
 
         if isPlaying {
             beginTransition { [self] in await advanceToNext() }
@@ -291,12 +373,14 @@ public final class PlayerController: ObservableObject {
 
     private func open(_ song: Song) async {
         openSong = song           // claim before awaiting so a later close sees it
+        RLPLog.info("Opening \(song.displayName)")
         await reason.openSong(path: song.path)
     }
 
     private func closeOpenSong() async {
         guard let song = openSong else { return }
         openSong = nil            // claim before awaiting so it is closed only once
+        RLPLog.info("Closing \(song.displayName)")
         await reason.closeSong(path: song.path)
     }
 
@@ -326,6 +410,11 @@ public final class PlayerController: ObservableObject {
             resumeAfterTransition = false
             if openSong != nil { isPlaying = true }
         }
+    }
+
+    private func refreshAwake() {
+        let needed = isPlaying || transitionTask != nil
+        if needed != needsToStayAwake { needsToStayAwake = needed }
     }
 
     private func cancelTransition() {

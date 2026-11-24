@@ -6,7 +6,7 @@ same way: it opens Reason song files in order and advances when a MIDI trigger n
 
 **Status:** written without access to a Mac. The platform-independent core (models, JSON
 files, MIDI byte parsing, and the playlist state machine in `PlayerController`) was compiled
-with Swift 5.10 on Linux, and its 44 unit tests pass. The parts that need macOS frameworks
+with Swift 5.10 on Linux, and its 59 unit tests pass. The parts that need macOS frameworks
 (CoreMIDI, Accessibility, AppKit, SwiftUI) have not been compiled or run. See the
 [First build checklist](#first-build-checklist).
 
@@ -45,32 +45,36 @@ permission for the Xcode-built binary, not for a `.app` you built with the scrip
 Package.swift
 Sources/RLPCore/                 no SwiftUI; unit tested
   Models.swift                   Song, PlaylistData, SettingsData, Array.movingItems
-  Persistence.swift              .rlp files and settings.json
+  Persistence.swift              .rlp files; settings in UserDefaults
+  Diagnostics.swift              os.Logger wrapper, keep-awake (ActivityKeeper)
   MidiParsing.swift              UMP words -> MIDI messages, note-on matching
   MidiNoteListener.swift         CoreMIDI input (UMP event API)
   ReasonBridge.swift             open songs, close via Accessibility, permission check
-  PlayerController.swift         playlist + playback state machine
+  PlayerController.swift         playlist, playback state machine, undo
 Sources/ReasonableLivePlayer/    SwiftUI app
   RLPApp.swift                   App, menu commands, app delegate (quit confirmation)
-  AppModel.swift                 settings, MIDI, permission polling, file panels
+  AppModel.swift                 settings, MIDI, permission polling, file panels, window title
   ContentView.swift              toolbar, playlist, drag and drop
-  SettingsView.swift, HelpView.swift
+  SettingsView.swift             contents of the Settings window (⌘,)
+  HelpView.swift
   WindowAccessor.swift           access to the NSWindow (always on top, frame saving)
 Tests/RLPCoreTests/
 Resources/Info.plist, icon.png
 scripts/build-app.sh
+scripts/make-icon.py             regenerates Resources/icon.png (needs Pillow)
 ```
 
 ## Compatibility with the .NET version
 
 - **Playlists (`.rlp`)** use the same JSON (`{"Version":1,"Songs":[…]}`). Files open in both.
-- **Settings** are read from the old `~/.config/ReasonableLivePlayer/settings.json` the first
-  time, and then saved to `~/Library/Application Support/ReasonableLivePlayer/settings.json`.
-  The JSON keys are unchanged.
+- **Settings** now live in UserDefaults (`~/Library/Preferences/com.reasonablelive.player.plist`).
+  On first run with no saved settings, the .NET version's
+  `~/.config/ReasonableLivePlayer/settings.json` is imported once. After that, the two apps no
+  longer share settings.
 - **Bundle identifier** is still `com.reasonablelive.player`, and the `.rlp` file type is the
   same.
-- **Window position and size** are saved with macOS frame autosave, not with the
-  `WindowX/Y/Width/Height` settings. Those values are preserved in the file but unused.
+- **Window position and size** are saved by macOS frame autosave. The old
+  `WindowX/Y/Width/Height` values are not imported.
 
 ## Behavior differences from the .NET version
 
@@ -99,8 +103,31 @@ scripts/build-app.sh
 9. **Opening a bad playlist** shows an error instead of crashing.
 10. **Always on top** from the toolbar is saved immediately.
 11. **Finder integration.** Double-clicking an `.rlp` opens it in the running app.
-12. Added: keyboard shortcuts (Cmd-O open playlist, Shift-Cmd-O add songs, Cmd-S save,
-    Cmd-, settings).
+12. **Keeps the Mac awake during a set.** While playing, or while a transition is running, the
+    app holds a power assertion that blocks idle sleep and App Nap and keeps the display on. Without it,
+    macOS can delay the app's timers while Reason is in front.
+13. **Standard Settings window** (⌘,) replaces the settings dialog. Changes apply immediately.
+    The values are set with steppers and pickers, so there is no validation dialog.
+14. **Undo and Redo** for adding, removing, reordering and opening playlists (up to 50 steps).
+15. **Open Recent**, **Save** and **Save As**. The window title shows the playlist name, with a
+    proxy icon and an unsaved-changes dot.
+16. **Playback menu** with Play/Pause (⌘↩) and Skip (⌘→). Modifier shortcuts are used on purpose
+    so a stray key press cannot start or skip a song during a show.
+17. **System look.** A native toolbar and system colors replace the fixed dark theme. Appearance
+    can be set to Match System, Light or Dark in Settings.
+18. **New app icon** (rounded macOS-style shape), standard About panel, VoiceOver labels on the
+    icon-only buttons, and logging to the unified log (see below).
+
+Other shortcuts: ⌘O open playlist, ⇧⌘O add songs, ⌘S save, ⇧⌘S save as, ⌘Z / ⇧⌘Z undo and redo.
+
+## Logging
+
+The app logs to the unified log under the subsystem `com.reasonablelive.player`: triggers
+received or ignored, songs opened and closed, MIDI connection, how Reason's window was closed.
+
+```bash
+log stream --predicate 'subsystem == "com.reasonablelive.player"' --level info
+```
 
 ## First build checklist
 
@@ -132,6 +159,17 @@ will warn). Then check these on a Mac in roughly this order:
    playlist.
 9. **Races:** press Skip repeatedly while playing, and send the trigger note twice quickly.
    Each song should open once.
+10. **Settings window:** the gear button and ⌘, should both open it. On macOS 13 the button
+    sends `showSettingsWindow:`; on 14 and later it is a `SettingsLink`. Check which one you
+    have works.
+11. **Toolbar:** check the buttons fit at the default window width, and that nothing is
+    cut off into the overflow menu.
+12. **Keep-awake:** while playing, `pmset -g assertions` should list "Reasonable Live Player"
+    with a PreventUserIdleDisplaySleep or similar entry. After pausing it should be gone.
+13. **Undo:** remove a song, press ⌘Z. Check the Edit menu names the action.
+14. **Document features:** save a playlist, check the title and proxy icon, edit it, and check
+    the dot in the close button. Check File > Open Recent lists it.
+15. **Appearance:** try Match System, Light and Dark in Settings.
 
 ## Signing and the Accessibility permission
 

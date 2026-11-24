@@ -1,138 +1,95 @@
 import SwiftUI
 import RLPCore
 
+/// Contents of the standard Settings window (⌘,). Changes apply immediately, as is usual for
+/// Mac preferences, so there are no Save or Cancel buttons.
 @MainActor
 struct SettingsView: View {
     @EnvironmentObject private var model: AppModel
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var devices: [String] = []
-    @State private var device = ""            // "" = none
-    @State private var channel = 1
-    @State private var note = 0
-    @State private var delayText = ""
-    @State private var spacingText = ""
-    @State private var fontSizeText = ""
-    @State private var loadLastPlaylist = false
-    @State private var alwaysOnTop = false
-    @State private var validationMessage: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Form {
-                Picker("MIDI Device:", selection: $device) {
+        Form {
+            Section("MIDI") {
+                Picker("Device", selection: deviceBinding) {
                     Text("None").tag("")
                     ForEach(deviceChoices, id: \.self) { name in
-                        Text(devices.contains(name) ? name : "\(name) (not available)").tag(name)
+                        Text(model.availableDevices.contains(name) ? name : "\(name) (not available)")
+                            .tag(name)
                     }
                 }
-                Picker("Channel (1-16):", selection: $channel) {
+                Picker("Channel", selection: binding(\.midiChannel)) {
                     ForEach(1...16, id: \.self) { Text("\($0)").tag($0) }
                 }
-                Picker("Note (0-127):", selection: $note) {
+                Picker("Trigger note", selection: binding(\.endNoteNumber)) {
                     ForEach(0...127, id: \.self) { Text("\($0)").tag($0) }
                 }
-                TextField("Transition delay (s):", text: $delayText)
-                    .frame(maxWidth: 220)
-                TextField("Song spacing (0-20):", text: $spacingText)
-                    .frame(maxWidth: 220)
-                TextField("Font size (10-24):", text: $fontSizeText)
-                    .frame(maxWidth: 220)
-                Toggle("Load last playlist on startup", isOn: $loadLastPlaylist)
-                Toggle("Always on top", isOn: $alwaysOnTop)
+                LabeledContent("Status") {
+                    Text(model.midiConnected ? "✓ Connected" : "✕ Not connected")
+                        .foregroundStyle(model.midiConnected ? .green : .orange)
+                }
             }
 
-            VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text("Accessibility:")
-                    if model.accessibilityGranted {
-                        Text("✓ Granted").foregroundColor(.green)
-                    } else {
-                        Text("✕ Not granted").foregroundColor(.orange)
-                        Button("Open System Settings") { AccessibilityPermission.openSystemSettings() }
+            Section("Playback") {
+                Stepper(value: binding(\.transitionDelaySec), in: 0...99) {
+                    Text("Transition delay: \(model.settings.transitionDelaySec) s")
+                }
+            }
+
+            Section("Playlist") {
+                Stepper(value: binding(\.songSpacing), in: 0...20) {
+                    Text("Song spacing: \(model.settings.songSpacing)")
+                }
+                Stepper(value: binding(\.songFontSize), in: 10...24, step: 1) {
+                    Text("Font size: \(Int(model.settings.songFontSize))")
+                }
+            }
+
+            Section("General") {
+                Toggle("Load last playlist on startup", isOn: binding(\.loadLastPlaylist))
+                Toggle("Always on top", isOn: binding(\.alwaysOnTop))
+                Picker("Appearance", selection: binding(\.appearance)) {
+                    ForEach(AppearanceMode.allCases) { mode in
+                        Text(mode.label).tag(mode)
                     }
                 }
-                HStack {
-                    Text("MIDI:")
-                    Text(model.midiConnected ? "✓ Connected" : "✕ Not connected")
-                        .foregroundColor(model.midiConnected ? .green : .orange)
+            }
+
+            Section("Permissions") {
+                LabeledContent("Accessibility") {
+                    if model.accessibilityGranted {
+                        Text("✓ Granted").foregroundStyle(.green)
+                    } else {
+                        HStack {
+                            Text("✕ Not granted").foregroundStyle(.orange)
+                            Button("Open System Settings") { AccessibilityPermission.openSystemSettings() }
+                        }
+                    }
                 }
             }
-
-            HStack {
-                Spacer()
-                Button("Cancel") { dismiss() }
-                    .keyboardShortcut(.cancelAction)
-                Button("Save") { save() }
-                    .keyboardShortcut(.defaultAction)
-            }
         }
-        .padding(20)
-        .frame(width: 400)
-        .onAppear(perform: load)
-        .alert("Validation Error", isPresented: Binding(
-            get: { validationMessage != nil },
-            set: { if !$0 { validationMessage = nil } }
-        )) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(validationMessage ?? "")
-        }
+        .formStyle(.grouped)
+        .frame(width: 460, height: 600)
     }
 
-    /// Available devices plus the saved one, so an offline device is not silently dropped.
+    /// Detected devices, plus the saved one so an offline device stays visible.
     private var deviceChoices: [String] {
-        var names = devices
-        if !device.isEmpty, !names.contains(device) { names.append(device) }
+        var names = model.availableDevices
+        let selected = model.selectedDeviceName
+        if !selected.isEmpty, !names.contains(selected) { names.append(selected) }
         return names
     }
 
-    private func load() {
-        let s = model.settings
-        devices = MidiNoteListener.availableDevices()
-        if let saved = s.midiDeviceName, !saved.isEmpty {
-            // Resolve the saved name to the display name used in the list (handles names
-            // saved by the .NET version).
-            device = MidiNoteListener.findSource(named: saved)?.displayName ?? saved
-        }
-        channel = min(16, max(1, s.midiChannel))
-        note = min(127, max(0, s.endNoteNumber))
-        delayText = String(s.transitionDelaySec)
-        spacingText = String(s.songSpacing)
-        fontSizeText = formatted(s.songFontSize)
-        loadLastPlaylist = s.loadLastPlaylist
-        alwaysOnTop = s.alwaysOnTop
+    private var deviceBinding: Binding<String> {
+        Binding(
+            get: { model.selectedDeviceName },
+            set: { name in model.update { $0.midiDeviceName = name.isEmpty ? nil : name } }
+        )
     }
 
-    private func save() {
-        guard let delay = Int(delayText.trimmingCharacters(in: .whitespaces)), (0...99).contains(delay) else {
-            validationMessage = "Transition delay must be a number between 0 and 99."
-            return
-        }
-        guard let spacing = Int(spacingText.trimmingCharacters(in: .whitespaces)), (0...20).contains(spacing) else {
-            validationMessage = "Song spacing must be a number between 0 and 20."
-            return
-        }
-        guard let fontSize = Double(fontSizeText.trimmingCharacters(in: .whitespaces)),
-              (10.0...24.0).contains(fontSize) else {
-            validationMessage = "Font size must be a number between 10 and 24."
-            return
-        }
-
-        var s = model.settings
-        s.midiDeviceName = device.isEmpty ? nil : device
-        s.midiChannel = channel
-        s.endNoteNumber = note
-        s.transitionDelaySec = delay
-        s.songSpacing = spacing
-        s.songFontSize = fontSize
-        s.loadLastPlaylist = loadLastPlaylist
-        s.alwaysOnTop = alwaysOnTop
-        model.applySettings(s)
-        dismiss()
-    }
-
-    private func formatted(_ value: Double) -> String {
-        value == value.rounded() ? String(Int(value)) : String(value)
+    private func binding<T>(_ keyPath: WritableKeyPath<SettingsData, T>) -> Binding<T> {
+        Binding(
+            get: { model.settings[keyPath: keyPath] },
+            set: { value in model.update { $0[keyPath: keyPath] = value } }
+        )
     }
 }

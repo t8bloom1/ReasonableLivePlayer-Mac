@@ -45,7 +45,24 @@ public struct PlaylistData: Codable, Equatable {
     }
 }
 
-/// User settings. Key names match the `settings.json` written by the .NET versions.
+/// How the app chooses light or dark appearance.
+public enum AppearanceMode: String, Codable, CaseIterable, Identifiable {
+    case system, light, dark
+
+    public var id: String { rawValue }
+
+    public var label: String {
+        switch self {
+        case .system: return "Match System"
+        case .light: return "Light"
+        case .dark: return "Dark"
+        }
+    }
+}
+
+/// User settings. Stored in UserDefaults by `SettingsStore`. The `Codable` conformance exists
+/// so the `settings.json` written by the .NET version can be imported once; its key names
+/// are kept for that reason.
 public struct SettingsData: Codable, Equatable {
     public var midiDeviceName: String?
     public var midiChannel: Int          // 1-16
@@ -56,12 +73,7 @@ public struct SettingsData: Codable, Equatable {
     public var alwaysOnTop: Bool
     public var songSpacing: Int          // 0-20 points between songs
     public var songFontSize: Double      // 10-24
-    // Retained so a settings file round-trips unchanged. The Swift app stores window
-    // geometry with NSWindow frame autosave instead.
-    public var windowX: Double?
-    public var windowY: Double?
-    public var windowWidth: Double?
-    public var windowHeight: Double?
+    public var appearance: AppearanceMode
 
     public static let defaultTransitionDelaySec = 5
 
@@ -75,10 +87,7 @@ public struct SettingsData: Codable, Equatable {
         alwaysOnTop: Bool = false,
         songSpacing: Int = 0,
         songFontSize: Double = 13,
-        windowX: Double? = nil,
-        windowY: Double? = nil,
-        windowWidth: Double? = nil,
-        windowHeight: Double? = nil
+        appearance: AppearanceMode = .system
     ) {
         self.midiDeviceName = midiDeviceName
         self.midiChannel = midiChannel
@@ -89,10 +98,7 @@ public struct SettingsData: Codable, Equatable {
         self.alwaysOnTop = alwaysOnTop
         self.songSpacing = songSpacing
         self.songFontSize = songFontSize
-        self.windowX = windowX
-        self.windowY = windowY
-        self.windowWidth = windowWidth
-        self.windowHeight = windowHeight
+        self.appearance = appearance
     }
 
     enum CodingKeys: String, CodingKey {
@@ -105,13 +111,11 @@ public struct SettingsData: Codable, Equatable {
         case alwaysOnTop = "AlwaysOnTop"
         case songSpacing = "SongSpacing"
         case songFontSize = "SongFontSize"
-        case windowX = "WindowX"
-        case windowY = "WindowY"
-        case windowWidth = "WindowWidth"
-        case windowHeight = "WindowHeight"
+        case appearance = "Appearance"
     }
 
     /// Tolerant decoding: any missing key takes its default, as the .NET record did.
+    /// Window geometry keys in old files are ignored (macOS saves the window frame itself).
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         midiDeviceName = try c.decodeIfPresent(String.self, forKey: .midiDeviceName)
@@ -124,10 +128,7 @@ public struct SettingsData: Codable, Equatable {
         alwaysOnTop = try c.decodeIfPresent(Bool.self, forKey: .alwaysOnTop) ?? false
         songSpacing = try c.decodeIfPresent(Int.self, forKey: .songSpacing) ?? 0
         songFontSize = try c.decodeIfPresent(Double.self, forKey: .songFontSize) ?? 13
-        windowX = try c.decodeIfPresent(Double.self, forKey: .windowX)
-        windowY = try c.decodeIfPresent(Double.self, forKey: .windowY)
-        windowWidth = try c.decodeIfPresent(Double.self, forKey: .windowWidth)
-        windowHeight = try c.decodeIfPresent(Double.self, forKey: .windowHeight)
+        appearance = (try? c.decodeIfPresent(AppearanceMode.self, forKey: .appearance)) ?? .system
     }
 }
 

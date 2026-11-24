@@ -104,41 +104,60 @@ final class PlaylistFileTests: XCTestCase {
 
 final class SettingsStoreTests: XCTestCase {
     private var dir: URL!
+    private var suiteName: String!
+    private var defaults: UserDefaults!
 
     override func setUpWithError() throws {
         dir = FileManager.default.temporaryDirectory.appendingPathComponent("rlp-settings-\(UUID())")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        suiteName = "rlp-test-\(UUID())"
+        defaults = UserDefaults(suiteName: suiteName)
+        defaults.removePersistentDomain(forName: suiteName)
     }
 
     override func tearDownWithError() throws {
+        defaults.removePersistentDomain(forName: suiteName)
         try? FileManager.default.removeItem(at: dir)
     }
 
     private func store(legacy: URL? = nil) -> SettingsStore {
-        SettingsStore(url: dir.appendingPathComponent("new/settings.json"), legacyURL: legacy)
+        SettingsStore(defaults: defaults, legacyURL: legacy)
+    }
+
+    private func writeLegacy(_ json: String) throws -> URL {
+        let url = dir.appendingPathComponent("legacy.json")
+        try json.write(to: url, atomically: true, encoding: .utf8)
+        return url
     }
 
     func testDefaultsWhenNothingExists() {
-        XCTAssertEqual(store().load(), SettingsData(midiDeviceName: nil, midiChannel: 1, endNoteNumber: 0, transitionDelaySec: 5))
+        XCTAssertEqual(store().load(), SettingsData())
+        XCTAssertEqual(SettingsData().midiChannel, 1)
+        XCTAssertEqual(SettingsData().transitionDelaySec, 5)
+        XCTAssertEqual(SettingsData().appearance, .system)
     }
 
-    func testRoundTrip() throws {
+    func testRoundTrip() {
         let s = SettingsData(
             midiDeviceName: "IAC Driver Bus 1", midiChannel: 7, endNoteNumber: 64, transitionDelaySec: 12,
             lastPlaylistPath: "/tmp/set.rlp", loadLastPlaylist: true, alwaysOnTop: true,
-            songSpacing: 6, songFontSize: 17.5,
-            windowX: -120, windowY: 40, windowWidth: 420, windowHeight: 520)
+            songSpacing: 6, songFontSize: 17.5, appearance: .dark)
         let store = store()
-        try store.save(s)
+        store.save(s)
         XCTAssertEqual(store.load(), s)
     }
 
-    func testReadsOlderFileWithMissingKeys() throws {
-        let legacy = dir.appendingPathComponent("legacy.json")
-        let json = """
-        {"MidiDeviceName":"IAC Driver Bus 1","MidiChannel":2,"EndNoteNumber":5,"TransitionDelaySec":3}
-        """
-        try json.write(to: legacy, atomically: true, encoding: .utf8)
+    func testClearingOptionalValuesRemovesThem() {
+        let store = store()
+        store.save(SettingsData(midiDeviceName: "X", lastPlaylistPath: "/a.rlp"))
+        store.save(SettingsData(midiDeviceName: nil, lastPlaylistPath: nil))
+        XCTAssertNil(store.load().midiDeviceName)
+        XCTAssertNil(store.load().lastPlaylistPath)
+    }
+
+    func testImportsOlderDotNetFileWithMissingKeys() throws {
+        let legacy = try writeLegacy(
+            #"{"MidiDeviceName":"IAC Driver Bus 1","MidiChannel":2,"EndNoteNumber":5,"TransitionDelaySec":3}"#)
         let loaded = store(legacy: legacy).load()
         XCTAssertEqual(loaded.midiDeviceName, "IAC Driver Bus 1")
         XCTAssertEqual(loaded.midiChannel, 2)
@@ -147,12 +166,11 @@ final class SettingsStoreTests: XCTestCase {
         XCTAssertEqual(loaded.songFontSize, 13)
         XCTAssertEqual(loaded.songSpacing, 0)
         XCTAssertFalse(loaded.alwaysOnTop)
-        XCTAssertNil(loaded.windowX)
+        XCTAssertEqual(loaded.appearance, .system)
     }
 
-    func testReadsFileWrittenByDotNetVersion() throws {
-        let legacy = dir.appendingPathComponent("legacy.json")
-        let json = """
+    func testImportsFileWrittenByDotNetVersion() throws {
+        let legacy = try writeLegacy("""
         {
           "MidiDeviceName": null,
           "MidiChannel": 1,
@@ -168,34 +186,59 @@ final class SettingsStoreTests: XCTestCase {
           "WindowWidth": 420,
           "WindowHeight": 520
         }
-        """
-        try json.write(to: legacy, atomically: true, encoding: .utf8)
+        """)
         let loaded = store(legacy: legacy).load()
         XCTAssertNil(loaded.midiDeviceName)
         XCTAssertEqual(loaded.lastPlaylistPath, "/Users/me/set.rlp")
         XCTAssertTrue(loaded.loadLastPlaylist)
-        XCTAssertEqual(loaded.windowWidth, 420)
+        XCTAssertEqual(loaded.songSpacing, 2)
     }
 
-    func testNewLocationWinsOverLegacy() throws {
-        let legacy = dir.appendingPathComponent("legacy.json")
-        try #"{"MidiChannel":9}"#.write(to: legacy, atomically: true, encoding: .utf8)
+    func testImportHappensOnlyOnce() throws {
+        let legacy = try writeLegacy(#"{"MidiChannel":9}"#)
         let store = store(legacy: legacy)
-        XCTAssertEqual(store.load().midiChannel, 9)          // migrated from legacy
-        try store.save(SettingsData(midiChannel: 3))
-        XCTAssertEqual(store.load().midiChannel, 3)          // new file now takes over
+        XCTAssertEqual(store.load().midiChannel, 9)          // imported
+        var changed = store.load()
+        changed.midiChannel = 3
+        store.save(changed)
+        XCTAssertEqual(store.load().midiChannel, 3)          // user's value wins
+        try #"{"MidiChannel":12}"#.write(to: legacy, atomically: true, encoding: .utf8)
+        XCTAssertEqual(store.load().midiChannel, 3)          // legacy file is not read again
     }
 
-    func testNegativeDelayFallsBackToDefault() throws {
+    func testExistingSettingsAreNotOverwrittenByImport() throws {
+        let first = store()
+        first.save(SettingsData(midiChannel: 4))
+        let legacy = try writeLegacy(#"{"MidiChannel":9}"#)
+        XCTAssertEqual(store(legacy: legacy).load().midiChannel, 4)
+    }
+
+    func testNegativeDelayFallsBackToDefault() {
         let store = store()
-        try store.save(SettingsData(transitionDelaySec: -4))
+        store.save(SettingsData(transitionDelaySec: -4))
         XCTAssertEqual(store.load().transitionDelaySec, 5)
     }
 
-    func testCorruptFileFallsBackToDefaults() throws {
-        let store = store()
-        try FileManager.default.createDirectory(at: store.url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try "{ nope".write(to: store.url, atomically: true, encoding: .utf8)
-        XCTAssertEqual(store.load(), SettingsData())
+    func testCorruptLegacyFileIsIgnored() throws {
+        let legacy = try writeLegacy("{ nope")
+        XCTAssertEqual(store(legacy: legacy).load(), SettingsData())
+    }
+
+    func testUnknownAppearanceInLegacyFileFallsBackToSystem() throws {
+        let legacy = try writeLegacy(#"{"Appearance":"sepia"}"#)
+        XCTAssertEqual(store(legacy: legacy).load().appearance, .system)
+    }
+}
+
+final class ActivityKeeperTests: XCTestCase {
+    func testTogglesAndIsIdempotent() {
+        let keeper = ActivityKeeper()
+        XCTAssertFalse(keeper.isActive)
+        keeper.setActive(true)
+        keeper.setActive(true)
+        XCTAssertTrue(keeper.isActive)
+        keeper.setActive(false)
+        keeper.setActive(false)
+        XCTAssertFalse(keeper.isActive)
     }
 }
