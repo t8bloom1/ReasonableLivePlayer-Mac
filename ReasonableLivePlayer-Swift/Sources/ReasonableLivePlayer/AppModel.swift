@@ -169,19 +169,20 @@ final class AppModel: ObservableObject {
         currentPlaylistURL?.deletingPathExtension().lastPathComponent ?? Self.appName
     }
 
-    /// Called with the hosting window. Safe to call repeatedly.
+    /// Called with the hosting window. Safe to call repeatedly: SwiftUI calls it on every view
+    /// update, which also lets it re-hide the title if SwiftUI restores it.
     func attach(window newWindow: NSWindow) {
         if window !== newWindow {
             window = newWindow
-            // Hide the title text. It shares the title bar row with the toolbar and forces the
-            // window wider. The title still exists for the Window menu and Mission Control.
-            newWindow.titleVisibility = .hidden
             newWindow.setFrameUsingName(Self.windowFrameName)
             newWindow.setFrameAutosaveName(Self.windowFrameName)
             keepOnScreen(newWindow)
             applyAppearance()
             updateWindowChrome()
         }
+        // The title text shares the title bar row with the toolbar and forces the window wider.
+        // The title still exists for the Window menu and Mission Control.
+        if newWindow.titleVisibility != .hidden { newWindow.titleVisibility = .hidden }
         applyWindowLevel()
     }
 

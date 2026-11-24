@@ -21,6 +21,7 @@ struct ContentView: View {
         .padding([.horizontal, .top], 8)
         .frame(minWidth: 380, minHeight: 240)
         .navigationTitle(model.windowTitle)
+        .hidingToolbarTitle()
         .toolbar {
             ToolbarItem(placement: .navigation) { TransportButtons() }
             ToolbarItem(placement: .primaryAction) { FileButtons() }
@@ -34,6 +35,24 @@ struct ContentView: View {
 }
 
 // MARK: - Toolbar
+
+extension View {
+    /// Removes the window title from the toolbar row so it does not take up width. Uses the
+    /// SwiftUI API on macOS 15 and later (when built with Xcode 16 or later). `AppModel.attach`
+    /// also hides it through AppKit, which covers earlier systems.
+    @ViewBuilder
+    fileprivate func hidingToolbarTitle() -> some View {
+        #if compiler(>=6.0)
+        if #available(macOS 15, *) {
+            self.toolbar(removing: .title)
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
+    }
+}
 
 @MainActor
 private struct TransportButtons: View {
